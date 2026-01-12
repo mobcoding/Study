@@ -77,11 +77,15 @@
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
         </service>
+
         <provider
-            android:name=".provider.HealthContextProvider"
-            android:authorities="${applicationId}.contextProvider"
-            android:enabled="true"
-            android:exported="false" />
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            android:exported="false">
+            <meta-data
+                android:name="com.zero.health.provider.HealthContextProvider"
+                android:value="androidx.startup" />
+        </provider>
     </application>
 
 </manifest>

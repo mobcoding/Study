@@ -8,8 +8,6 @@ import android.widget.Toast
 import com.onesignal.OneSignal
 import com.onesignal.debug.LogLevel
 import com.toolkit.admob.manager.AdMobManager.initLifecycle
-import com.zero.base.net.RetrofitManager
-import com.zero.base.util.StorageUtils
 import com.zero.base.widget.Gloading
 import com.zero.base.widget.LoadingAdapter
 import com.zero.study.ui.activity.SplashActivity
@@ -31,9 +29,7 @@ class AppStudy : Application() {
         appContext = applicationContext
         if (isMainProcess(this)) {
             initLifecycle(this, SplashActivity::class.java.simpleName)
-            StorageUtils.init(this)
             Gloading.default?.initDefault(LoadingAdapter())
-            RetrofitManager.initHttp(this)
             OneSignal.Debug.logLevel = LogLevel.VERBOSE
             OneSignal.initWithContext(this, "a4075666-c2b1-41aa-b8e4-a668bbb1036c")
             CoroutineScope(Dispatchers.IO).launch {
