@@ -172,7 +172,6 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(FragmentHomeBinding::infl
                 }
 
                 25 -> {
-                    "EventBus post".log("zzz")
                     isHookEnabled(requireContext())
                     BottomSheetDialog.Builder().setTitle(
                         getString(R.string.dialog_title)).setCancelText(
