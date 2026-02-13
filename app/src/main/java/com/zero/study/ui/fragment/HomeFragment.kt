@@ -22,14 +22,17 @@ import androidx.core.net.toUri
 import androidx.core.os.bundleOf
 import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.lifecycleScope
+import com.drake.net.Post
 import com.google.gson.Gson
 import com.toolkit.admob.manager.InterstitialPreloadAdMobManager
 import com.toolkit.admob_libray.BuildConfig
 import com.zero.base.activity.BaseActivity
+import com.zero.base.ext.AESConfig.toAESKey
 import com.zero.base.ext.appFileManager
+import com.zero.base.ext.decrypt
+import com.zero.base.ext.encrypt
 import com.zero.base.ext.fromJson
 import com.zero.base.ext.isServiceRunning
-import com.zero.base.ext.log
 import com.zero.base.ext.parseInt
 import com.zero.base.ext.readJson
 import com.zero.base.ext.startActivity
@@ -45,7 +48,6 @@ import com.zero.study.R
 import com.zero.study.databinding.FragmentHomeBinding
 import com.zero.study.provider.HookSwitchProvider.Companion.PATH_SWITCH
 import com.zero.study.ui.activity.AccessPerActivity
-import com.zero.study.ui.activity.WidgetActivity
 import com.zero.study.ui.activity.ContextProviderActivity
 import com.zero.study.ui.activity.GuideActivity
 import com.zero.study.ui.activity.InterstitialActivity
@@ -60,10 +62,12 @@ import com.zero.study.ui.activity.RecyclerViewActivity
 import com.zero.study.ui.activity.RoomActivity
 import com.zero.study.ui.activity.SecondActivity
 import com.zero.study.ui.activity.TakePhotoActivity
+import com.zero.study.ui.activity.WidgetActivity
 import com.zero.study.ui.dialog.BottomSheetDialog
 import com.zero.study.ui.dialog.Dialog
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import okhttp3.Response
 import java.io.File
 import kotlin.properties.Delegates
 
@@ -82,10 +86,10 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(FragmentHomeBinding::infl
         }
     }
 
+    var encryptedData: String? = ""
     private var windowIsTranslucent: Boolean = false
     override fun initView() {
-        binding.tagFlow.addTag(requireContext(),
-            Gson().fromJson(requireActivity().readJson("tags.json"))) { position, _ ->
+        binding.tagFlow.addTag(requireContext(), Gson().fromJson(requireActivity().readJson("tags.json"))) { position, _ ->
             when (position + 1) {
                 1 -> {
                     size += 1
@@ -101,9 +105,15 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(FragmentHomeBinding::infl
                 7 -> {
                     val parentActivity = requireActivity() as BaseActivity<*>
                     if (!windowIsTranslucent) {
-                        parentActivity.hideSystemBars(WindowInsetsCompat.Type.systemBars())
+                        parentActivity.hideSystemBars(WindowInsetsCompat.Type.navigationBars())
                         windowIsTranslucent = true
+                        val mySecretKey ="123456".toAESKey()
+                         encryptedData = "AIzaSyCSqWbK7kJYjC_g1SfprdFhnIcpDVMFXs4".encrypt(mySecretKey)
+                        Log.d("zzz", "encryptedData: $encryptedData")
                     } else {
+                        val mySecretKey ="123456".toAESKey()
+                        val decryptedText ="8THDpCdtnq3IMxCJ+M9QYbq6cQD9r1esivlUmSrr0Ot8FTQNmM53W4Vs11ElayKMSFhv7VaFl/hiS+Lgxy3+m9hjbA==".decrypt(mySecretKey)
+                        Log.d("zzz", "decryptedText: $decryptedText")
                         parentActivity.showSystemBars(WindowInsetsCompat.Type.systemBars())
                         windowIsTranslucent = false
                     }
@@ -120,8 +130,7 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(FragmentHomeBinding::infl
                 }
 
                 10 -> {
-                    InterstitialPreloadAdMobManager.tryShow(requireActivity(),
-                        BuildConfig.ADMOB_INTERSTITIAL_CONNECT_RESULT) {
+                    InterstitialPreloadAdMobManager.tryShow(requireActivity(), BuildConfig.ADMOB_INTERSTITIAL_CONNECT_RESULT) {
                         context?.startActivity<InterstitialActivity>()
                     }
                 }
@@ -129,8 +138,7 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(FragmentHomeBinding::infl
                 11 -> context?.startActivity<LanguageActivity>()
                 12 -> context?.startActivity<AccessPerActivity>()
                 13 -> {
-                    Dialog.Builder().setTitle("Custom Title").setCancelText("Exit").setConfirmText(
-                        "Confirm").setCancelOnTouchOutSide(false).setOnClickListener { input ->
+                    Dialog.Builder().setTitle("Custom Title").setCancelText("Exit").setConfirmText("Confirm").setCancelOnTouchOutSide(false).setOnClickListener { input ->
                         Toast.makeText(requireContext(), input, Toast.LENGTH_SHORT).show()
                     }.build().show(childFragmentManager, "Dialog")
                 }
@@ -138,8 +146,7 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(FragmentHomeBinding::infl
                 14 -> {
                     val builder = CustomTabsIntent.Builder()
                     val schemeBuilder = CustomTabColorSchemeParams.Builder()
-                    val param = schemeBuilder.setToolbarColor(
-                        ContextCompat.getColor(requireContext(), R.color.appThemeColor)).build()
+                    val param = schemeBuilder.setToolbarColor(ContextCompat.getColor(requireContext(), R.color.appThemeColor)).build()
                     val customTabsIntent = builder.setDefaultColorSchemeParams(param).build()
                     customTabsIntent.launchUrl(requireContext(), "https:www.baidu.com".toUri())
                 }
@@ -148,6 +155,12 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(FragmentHomeBinding::infl
                 16 -> {
                     viewLifecycleOwner.lifecycleScope.launch {
                         AppUpdateHelper.checkUpdate(requireContext())
+                        val response = Post<Response>("http://164.152.30.30:8082/api/session") {
+                            param("email", "660739@traccar.com")
+                            param("password", "660739")
+                        }.await()
+                        val cookies = response.headers("set-cookie")
+                        Log.d("zzz", "onViewCreated:${cookies[0]}")
                     }
 
                 }
@@ -163,8 +176,7 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(FragmentHomeBinding::infl
                 22 -> context?.startActivity<NotificationActivity>()
                 23 -> {
                     //setFragmentResult API
-                    parentFragmentManager.setFragmentResult(MainActivity::class.java.simpleName,
-                        bundleOf("screenHeight" to resources.displayMetrics.heightPixels))
+                    parentFragmentManager.setFragmentResult(MainActivity::class.java.simpleName, bundleOf("screenHeight" to resources.displayMetrics.heightPixels))
                 }
 
                 24 -> {
@@ -173,9 +185,7 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(FragmentHomeBinding::infl
 
                 25 -> {
                     isHookEnabled(requireContext())
-                    BottomSheetDialog.Builder().setTitle(
-                        getString(R.string.dialog_title)).setCancelText(
-                        getString(R.string.dialog_cancel)).setConfirmText(
+                    BottomSheetDialog.Builder().setTitle(getString(R.string.dialog_title)).setCancelText(getString(R.string.dialog_cancel)).setConfirmText(
                         getString(R.string.dialog_confirm)).setOnClickListener {
 
                     }.build().show(childFragmentManager, "BottomSheetDialog")
@@ -209,11 +219,9 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(FragmentHomeBinding::infl
                 Toast.makeText(requireContext(), "已启动内存监控悬浮窗", Toast.LENGTH_SHORT).show()
             }
         } else {
-            val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                "package:${requireContext().packageName}".toUri())
+            val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, "package:${requireContext().packageName}".toUri())
             startActivity(intent)
-            Toast.makeText(requireContext(), "请授予悬浮窗权限以使用内存监控功能",
-                Toast.LENGTH_LONG).show()
+            Toast.makeText(requireContext(), "请授予悬浮窗权限以使用内存监控功能", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -223,8 +231,7 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(FragmentHomeBinding::infl
             val authority = "${appContext.packageName}.HookSwitchProvider"
             val uri = "content://$authority/$PATH_SWITCH".toUri()
             val contentResolver: ContentResolver = context.contentResolver
-            val cursor: Cursor? = contentResolver.query(uri, arrayOf("is_enabled"), null, null,
-                null)
+            val cursor: Cursor? = contentResolver.query(uri, arrayOf("is_enabled"), null, null, null)
             var enabled = false
             cursor?.use {
                 if (it.count > 0 && it.moveToFirst()) {
@@ -269,31 +276,24 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(FragmentHomeBinding::infl
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             arrayOf(Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.READ_MEDIA_VIDEO)
         } else {
-            arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE,
-                Manifest.permission.WRITE_EXTERNAL_STORAGE)
+            arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE)
         }
     }
-    private var activityResult: ActivityResultLauncher<Intent> = registerForActivityResult(
-        ActivityResultContracts.StartActivityForResult()) { result: ActivityResult ->
+    private var activityResult: ActivityResultLauncher<Intent> = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result: ActivityResult ->
         if (result.resultCode == RESULT_OK) {
             val resultData = result.data!!.getStringExtra("data_return")
             Log.d("zzz", "resultData: $resultData")
         }
     }
-    var requestLauncher: ActivityResultLauncher<String> = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()) { granted: Boolean ->
+    var requestLauncher: ActivityResultLauncher<String> = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted: Boolean ->
         if (!granted) {
-            val result = ContextCompat.checkSelfPermission(requireContext(),
-                Manifest.permission.WRITE_EXTERNAL_STORAGE)
+            val result = ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.WRITE_EXTERNAL_STORAGE)
             if (result == PermissionChecker.PERMISSION_DENIED) {
             }
         }
-        Toast.makeText(requireContext(),
-            "request permission result:" + (if (granted) "success" else "failed"),
-            Toast.LENGTH_SHORT).show()
+        Toast.makeText(requireContext(), "request permission result:" + (if (granted) "success" else "failed"), Toast.LENGTH_SHORT).show()
     }
-    private var storageLauncher: ActivityResultLauncher<String> = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()) { granted: Boolean ->
+    private var storageLauncher: ActivityResultLauncher<String> = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted: Boolean ->
         if (granted) {
             deleteFile()
         } else {
@@ -305,22 +305,18 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(FragmentHomeBinding::infl
         if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.R) {
             permissionLauncher.launch(Manifest.permission.READ_EXTERNAL_STORAGE)
         } else {
-            selectSinglePhotoLauncher.launch(
-                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+            selectSinglePhotoLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
         }
     }
 
-    private val selectSinglePhotoLauncher = registerForActivityResult(
-        ActivityResultContracts.PickVisualMedia()) { uri ->
+    private val selectSinglePhotoLauncher = registerForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) {
 
         }
     }
-    private var permissionLauncher: ActivityResultLauncher<String> = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()) { granted: Boolean ->
+    private var permissionLauncher: ActivityResultLauncher<String> = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted: Boolean ->
         if (granted) {
-            selectSinglePhotoLauncher.launch(
-                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+            selectSinglePhotoLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
         } else {
             requireContext().toast("Permission denied")
         }
