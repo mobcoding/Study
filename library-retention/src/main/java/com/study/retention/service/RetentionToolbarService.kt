@@ -1,8 +1,9 @@
 package com.study.retention.service
 
-import android.annotation.SuppressLint
 import android.app.Service
 import android.content.Intent
+import android.content.pm.ServiceInfo
+import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.IBinder
@@ -42,7 +43,7 @@ internal class RetentionToolbarService : Service() {
         super.onDestroy()
     }
 
-    @SuppressLint("ForegroundServiceType") private fun startOrStop() {
+    private fun startOrStop() {
         if (!RetentionEngine.ensureInitialized(this)) {
             stopTimerLoop()
             stopSelf()
@@ -55,7 +56,15 @@ internal class RetentionToolbarService : Service() {
             return
         }
         runCatching {
-            startForeground(NOTIFICATION_ID, notification)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(
+                    NOTIFICATION_ID,
+                    notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC,
+                )
+            } else {
+                startForeground(NOTIFICATION_ID, notification)
+            }
             Log.d(RetentionLog.TAG, "Retention toolbar foreground service active.")
             ensureTimerLoop()
         }.onFailure {

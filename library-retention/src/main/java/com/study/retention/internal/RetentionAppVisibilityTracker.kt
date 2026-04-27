@@ -25,6 +25,10 @@ internal object RetentionAppVisibilityTracker : Application.ActivityLifecycleCal
         val current = foregroundCount.decrementAndGet()
         if (current < 0) {
             foregroundCount.set(0)
+            return
+        }
+        if (current == 0 && !activity.isChangingConfigurations) {
+            RetentionEngine.onAppBackground()
         }
     }
 

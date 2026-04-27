@@ -11,6 +11,7 @@ import android.util.Log
 
 internal object RetentionEngine {
 
+    private const val APP_BACKGROUND_DELAY_MS = 1_000L
     private const val TIMER_INITIAL_DELAY_MS = 20_000L
     private const val TIMER_INTERVAL_MS = 60_000L
     private const val UNLOCK_DELAY_MS = 1_000L
@@ -136,12 +137,33 @@ internal object RetentionEngine {
 
             Intent.ACTION_SCREEN_OFF -> {
                 scheduler?.refreshToolbar(application)
+                handleImmediateTrigger(RetentionTriggerType.SCREEN_OFF, "screen_off")
+            }
+
+            Intent.ACTION_MY_PACKAGE_REPLACED -> {
+                scheduler?.refreshToolbar(application)
+                scheduler?.scheduleNextAlarm(force = true)
+                handleImmediateTrigger(RetentionTriggerType.PACKAGE_REPLACED, "package_replaced")
             }
 
             else -> {
                 scheduler?.refreshToolbar(application)
             }
         }
+    }
+
+    fun onAppBackground() {
+        val handler = backgroundHandler ?: return
+        handler.postDelayed(
+            {
+                if (RetentionAppVisibilityTracker.isAppForeground()) {
+                    Log.d(RetentionLog.TAG, "Skip app_background trigger because app returned to foreground.")
+                    return@postDelayed
+                }
+                handleImmediateTrigger(RetentionTriggerType.APP_BACKGROUND, "app_background")
+            },
+            APP_BACKGROUND_DELAY_MS,
+        )
     }
 
     private fun ensureHandler() {
@@ -171,6 +193,11 @@ internal object RetentionEngine {
             },
             UNLOCK_DELAY_MS,
         )
+    }
+
+    private fun handleImmediateTrigger(trigger: RetentionTriggerType, source: String) {
+        Log.d(RetentionLog.TAG, "Dispatch ${trigger.extraValue} trigger. source=$source")
+        scheduler?.handleTrigger(trigger)
     }
 
     private fun isDeviceLocked(): Boolean {

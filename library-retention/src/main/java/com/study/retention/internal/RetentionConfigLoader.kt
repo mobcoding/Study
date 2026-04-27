@@ -82,6 +82,9 @@ internal object RetentionConfigLoader {
             unlock = rawPolicy.unlock.toPolicy(defaultInterval = 10, defaultLimit = 40),
             alarm = rawPolicy.alarm.toPolicy(defaultInterval = 50, defaultLimit = 30),
             boot = rawPolicy.boot.toPolicy(defaultInterval = 0, defaultLimit = 1, defaultEnabled = false),
+            appBackground = rawPolicy.appBackground.toPolicy(defaultInterval = 30, defaultLimit = 10, defaultEnabled = false),
+            screenOff = rawPolicy.screenOff.toPolicy(defaultInterval = 30, defaultLimit = 10, defaultEnabled = false),
+            packageReplaced = rawPolicy.packageReplaced.toPolicy(defaultInterval = 0, defaultLimit = 1, defaultEnabled = false),
         )
         val toolbar = RetentionToolbarSection(
             enabled = rawConfig.toolbar?.enabled ?: true,

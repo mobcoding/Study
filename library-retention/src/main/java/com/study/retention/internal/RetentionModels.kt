@@ -8,6 +8,9 @@ internal enum class RetentionTriggerType(val policyKey: String, val extraValue: 
     UNLOCK("unlock", "unlock"),
     ALARM("alarm", "alarm"),
     BOOT("boot", "boot"),
+    APP_BACKGROUND("app_background", "app_background"),
+    SCREEN_OFF("screen_off", "screen_off"),
+    PACKAGE_REPLACED("package_replaced", "package_replaced"),
 }
 
 internal data class RetentionRuntimeConfig(
@@ -39,6 +42,9 @@ internal data class RetentionPolicySection(
     val unlock: TriggerPolicy,
     val alarm: TriggerPolicy,
     val boot: TriggerPolicy,
+    val appBackground: TriggerPolicy,
+    val screenOff: TriggerPolicy,
+    val packageReplaced: TriggerPolicy,
 )
 
 internal data class GlobalCooldownPolicy(
@@ -131,6 +137,9 @@ internal data class RawPolicySection(
     val unlock: RawTriggerPolicy? = null,
     val alarm: RawTriggerPolicy? = null,
     val boot: RawTriggerPolicy? = null,
+    val appBackground: RawTriggerPolicy? = null,
+    val screenOff: RawTriggerPolicy? = null,
+    val packageReplaced: RawTriggerPolicy? = null,
 )
 
 internal data class RawQuietHours(

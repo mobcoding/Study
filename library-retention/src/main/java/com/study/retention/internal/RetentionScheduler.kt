@@ -198,6 +198,9 @@ internal class RetentionScheduler(
             RetentionTriggerType.UNLOCK -> config.policy.unlock
             RetentionTriggerType.ALARM -> config.policy.alarm
             RetentionTriggerType.BOOT -> config.policy.boot
+            RetentionTriggerType.APP_BACKGROUND -> config.policy.appBackground
+            RetentionTriggerType.SCREEN_OFF -> config.policy.screenOff
+            RetentionTriggerType.PACKAGE_REPLACED -> config.policy.packageReplaced
         }
     }
 
