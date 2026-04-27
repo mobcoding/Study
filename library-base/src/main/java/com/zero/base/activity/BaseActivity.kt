@@ -3,7 +3,6 @@ package com.zero.base.activity
 import android.content.Context
 import android.os.Build
 import android.os.Bundle
-import android.os.Looper
 import android.view.LayoutInflater
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
@@ -11,14 +10,10 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import androidx.lifecycle.lifecycleScope
 import androidx.viewbinding.ViewBinding
 import com.zero.base.fragment.LoadingDialog
 import com.zero.base.theme.AppTheme
 import com.zero.base.util.StorageUtils
-import com.zero.base.widget.Gloading
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 
 /**
 

@@ -5,15 +5,8 @@ import android.app.Application
 import android.content.Context
 import android.os.Process
 import android.widget.Toast
-import com.onesignal.OneSignal
-import com.onesignal.debug.LogLevel
 import com.toolkit.admob.manager.AdMobManager.initLifecycle
-import com.zero.base.widget.Gloading
-import com.zero.base.widget.LoadingAdapter
 import com.zero.study.ui.activity.SplashActivity
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import kotlin.properties.Delegates
 
 
@@ -29,12 +22,12 @@ class AppStudy : Application() {
         appContext = applicationContext
         if (isMainProcess(this)) {
             initLifecycle(this, SplashActivity::class.java.simpleName)
-            Gloading.default?.initDefault(LoadingAdapter())
-            OneSignal.Debug.logLevel = LogLevel.VERBOSE
-            OneSignal.initWithContext(this, "a4075666-c2b1-41aa-b8e4-a668bbb1036c")
-            CoroutineScope(Dispatchers.IO).launch {
-                OneSignal.Notifications.requestPermission(true)
-            }
+//            Gloading.default?.initDefault(LoadingAdapter())
+//            OneSignal.Debug.logLevel = LogLevel.VERBOSE
+//            OneSignal.initWithContext(this, "a4075666-c2b1-41aa-b8e4-a668bbb1036c")
+//            CoroutineScope(Dispatchers.IO).launch {
+//                OneSignal.Notifications.requestPermission(true)
+//            }
         }
     }
 

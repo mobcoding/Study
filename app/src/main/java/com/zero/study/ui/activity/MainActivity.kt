@@ -56,7 +56,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(ActivityMainBinding::infl
             recreateTransitionData?.let { transitionAnimation(it) }
         }
         if (!checkNotificationListener(this)) {
-            startNotificationListener(this)
+//            startNotificationListener(this)
         }
     }
 
