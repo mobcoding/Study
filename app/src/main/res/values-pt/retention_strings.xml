@@ -1,0 +1,21 @@
+<resources>
+    <string name="retention_toolbar_channel_name">Barra de retenção</string>
+    <string name="retention_reminder_channel_name">Lembretes de retenção</string>
+    <string name="retention_reminder_cleanup_message">Conclua a limpeza de hoje com um toque.</string>
+    <string name="retention_reminder_cleanup_action">Abrir</string>
+    <string name="retention_reminder_editor_message">Suas ferramentas de edição estão prontas de novo.</string>
+    <string name="retention_reminder_editor_action">Editar</string>
+    <string name="retention_reminder_style_message">Volte e continue seu fluxo criativo.</string>
+    <string name="retention_reminder_style_action">Experimentar</string>
+    <string name="retention_reminder_setting_message">Revise suas configurações e mantenha tudo ajustado.</string>
+    <string name="retention_reminder_setting_action">Revisar</string>
+    <string name="retention_demo_health_tools">Ferramentas</string>
+    <string name="retention_demo_health_alarm">Alarme</string>
+    <string name="retention_demo_blood_pressure">Pressão arterial</string>
+    <string name="retention_demo_heart_rate">Frequência cardíaca</string>
+    <string name="retention_demo_blood_glucose">Glicose no sangue</string>
+    <string name="retention_demo_health_record">Registrar</string>
+    <string name="retention_demo_notification_channel_blood_pressure">Lembrete de pressão arterial</string>
+    <string name="retention_demo_notification_channel_heart_rate">Lembrete de frequência cardíaca</string>
+    <string name="retention_demo_notification_channel_blood_glucose">Lembrete de glicose no sangue</string>
+</resources>

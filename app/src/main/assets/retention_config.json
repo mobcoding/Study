@@ -1,0 +1,145 @@
+{
+  "version": 1,
+  "notification": {
+    "smallIcon": "retention_demo_ic_heart_rate",
+    "toolbarChannelId": "retention_toolbar",
+    "toolbarChannelNameRes": "retention_demo_health_tools",
+    "reminderChannelId": "retention_reminder",
+    "reminderChannelNameRes": "retention_demo_health_alarm",
+    "toolbarNotificationId": 105031,
+    "reminderNotificationBaseId": 500000,
+    "toolbarCollapsedLayout": "retention_toolbar_notification_compact",
+    "toolbarExpandedLayout": "retention_toolbar_notification_expanded",
+    "reminderTinyLayout": "retention_reminder_notification_tiny",
+    "reminderMiddleLayout": "retention_reminder_notification_compact",
+    "reminderExpandedLayout": "retention_reminder_notification_expanded"
+  },
+  "policy": {
+    "quietHours": {
+      "startHourInclusive": 0,
+      "endHourExclusive": 8
+    },
+    "globalCooldown": {
+      "enabled": false,
+      "intervalMinutes": 15
+    },
+    "timer": {
+      "enabled": true,
+      "intervalMinutes": 1,
+      "dailyLimit": 30
+    },
+    "unlock": {
+      "enabled": false,
+      "intervalMinutes": 2,
+      "dailyLimit": 40
+    },
+    "alarm": {
+      "enabled": false,
+      "intervalMinutes": 3,
+      "dailyLimit": 30
+    }
+  },
+  "toolbar": {
+    "enabled": true,
+    "items": [
+      {
+        "id": "toolbar_health_tools",
+        "titleRes": "retention_demo_health_tools",
+        "icon": "retention_demo_ic_alarm_clock",
+        "activityClass": "com.zero.study.ui.activity.MainActivity",
+        "extras": {
+          "target": "health_tools",
+          "jumpTo": 0
+        }
+      },
+      {
+        "id": "toolbar_blood_pressure",
+        "titleRes": "retention_demo_blood_pressure",
+        "icon": "retention_demo_ic_blood_pressure",
+        "activityClass": "com.zero.study.ui.activity.MainActivity",
+        "extras": {
+          "target": "blood_pressure",
+          "jumpTo": 1
+        }
+      },
+      {
+        "id": "toolbar_heart_rate",
+        "titleRes": "retention_demo_heart_rate",
+        "icon": "retention_demo_ic_heart_rate",
+        "activityClass": "com.zero.study.ui.activity.MainActivity",
+        "extras": {
+          "target": "heart_rate",
+          "jumpTo": 2
+        }
+      },
+      {
+        "id": "toolbar_blood_glucose",
+        "titleRes": "retention_demo_blood_glucose",
+        "icon": "retention_demo_ic_blood_glucose",
+        "activityClass": "com.zero.study.ui.activity.MainActivity",
+        "extras": {
+          "target": "blood_glucose",
+          "jumpTo": 3
+        }
+      }
+    ]
+  },
+  "reminders": {
+    "bucketOrder": [
+      500020,
+      500030,
+      500001,
+      500002
+    ],
+    "items": [
+      {
+        "id": "health_tools_reminder",
+        "bucketId": 500020,
+        "messageRes": "retention_demo_health_tools",
+        "actionLabelRes": "retention_demo_health_record",
+        "largeIcon": "retention_demo_ic_alarm_clock",
+        "activityClass": "com.zero.study.ui.activity.MainActivity",
+        "extras": {
+          "target": "health_tools",
+          "jumpTo": 0
+        }
+      },
+      {
+        "id": "blood_pressure_reminder",
+        "bucketId": 500030,
+        "messageRes": "retention_demo_notification_channel_blood_pressure",
+        "actionLabelRes": "retention_demo_health_record",
+        "largeIcon": "retention_demo_ic_blood_pressure",
+        "activityClass": "com.zero.study.ui.activity.MainActivity",
+        "extras": {
+          "target": "blood_pressure",
+          "jumpTo": 1
+        }
+      },
+      {
+        "id": "heart_rate_reminder",
+        "bucketId": 500001,
+        "messageRes": "retention_demo_notification_channel_heart_rate",
+        "actionLabelRes": "retention_demo_health_record",
+        "largeIcon": "retention_demo_ic_heart_rate",
+        "activityClass": "com.zero.study.ui.activity.MainActivity",
+        "extras": {
+          "target": "heart_rate",
+          "jumpTo": 2
+        }
+      },
+      {
+        "id": "blood_glucose_reminder",
+        "bucketId": 500002,
+        "messageRes": "retention_demo_notification_channel_blood_glucose",
+        "actionLabelRes": "retention_demo_health_record",
+        "largeIcon": "retention_demo_ic_blood_glucose",
+        "activityClass": "com.zero.study.ui.activity.MainActivity",
+        "extras": {
+          "target": "blood_glucose",
+          "jumpTo": 3
+        }
+      }
+    ]
+  }
+}

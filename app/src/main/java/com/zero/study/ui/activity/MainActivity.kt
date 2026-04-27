@@ -34,6 +34,7 @@ import com.zero.study.ui.fragment.FourFragment
 import com.zero.study.ui.fragment.HomeFragment
 import com.zero.study.ui.fragment.SecondFragment
 import com.zero.study.ui.fragment.ThirdFragment
+import com.study.retention.RetentionSdk
 import kotlin.math.hypot
 
 /**
@@ -47,7 +48,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(ActivityMainBinding::infl
     }
 
     private val notificationPermissionLauncher = registerNotificationLauncher(onGranted = {
-        // 权限刚刚获取成功，可以执行初始化推送等操作
+        RetentionSdk.onNotificationPermissionGranted(this)
     }, onDenied = {
         Log.d("zzz", "User denied notification permission")
     })
@@ -58,9 +59,6 @@ class MainActivity : BaseActivity<ActivityMainBinding>(ActivityMainBinding::infl
         if (savedInstanceState != null) {
             recreateTransitionData = BundleCompat.getParcelable(savedInstanceState, TRANSITION_DATA_KEY, TransitionData::class.java)
             recreateTransitionData?.let { transitionAnimation(it) }
-        }
-        checkAndRequestNotification(notificationPermissionLauncher) {
-            // 如果已经授权过了，直接走这里的逻辑
         }
         if (!checkNotificationListener(this)) {
 //            startNotificationListener(this)
@@ -200,6 +198,9 @@ class MainActivity : BaseActivity<ActivityMainBinding>(ActivityMainBinding::infl
 
     override fun onResume() {
         super.onResume()
+        checkAndRequestNotification(notificationPermissionLauncher) {
+            RetentionSdk.onNotificationPermissionGranted(this)
+        }
         InterstitialPreloadAdMobManager.preLoadInterstitialAd(BuildConfig.ADMOB_INTERSTITIAL_CONNECT_RESULT)
     }
 }
