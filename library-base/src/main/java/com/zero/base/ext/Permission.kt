@@ -1,7 +1,6 @@
 package com.zero.base.ext
 
 import android.Manifest
-import android.app.Activity
 import android.app.AlarmManager
 import android.content.Context
 import android.content.Intent
@@ -10,6 +9,11 @@ import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.util.Log
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 
 /**
@@ -88,4 +92,39 @@ fun Context.startAlarm() {
         }
     }
     startActivity(intent)
+}
+
+/**
+ * 封装：注册通知权限回调
+ */
+fun AppCompatActivity.registerNotificationLauncher(onGranted: () -> Unit, onDenied: () -> Unit): ActivityResultLauncher<String> {
+    return registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
+        if (isGranted) onGranted() else onDenied()
+    }
+}
+
+/**
+ * 封装：执行申请逻辑
+ */
+fun AppCompatActivity.checkAndRequestNotification(launcher: ActivityResultLauncher<String>, onAlreadyGranted: () -> Unit) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        val permission = Manifest.permission.POST_NOTIFICATIONS
+        when {
+            // 已授权
+            ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED -> {
+                onAlreadyGranted()
+            }
+            // 用户拒绝过一次，显示解释弹窗（Rationale）
+            ActivityCompat.shouldShowRequestPermissionRationale(this, permission) -> {
+                AlertDialog.Builder(this).setTitle("需要通知权限").setMessage("开启通知权限，确保您能及时收到订单和消息提醒。").setPositiveButton("去开启") { _, _ ->
+                    launcher.launch(permission)
+                }.setNegativeButton("取消", null).show()
+            }
+            // 直接申请
+            else -> launcher.launch(permission)
+        }
+    } else {
+        // API 33 以下默认有权
+        onAlreadyGranted()
+    }
 }

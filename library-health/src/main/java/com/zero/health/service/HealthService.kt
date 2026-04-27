@@ -1,7 +1,5 @@
 package com.zero.health.service
 
-import android.Manifest
-import androidx.annotation.RequiresPermission
 import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.LibraryResult
