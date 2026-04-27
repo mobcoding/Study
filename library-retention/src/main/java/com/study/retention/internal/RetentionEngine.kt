@@ -1,10 +1,9 @@
 package com.study.retention.internal
 
 import android.app.Application
-import android.content.BroadcastReceiver
+import android.app.KeyguardManager
 import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
@@ -23,30 +22,8 @@ internal object RetentionEngine {
     private var scheduler: RetentionScheduler? = null
     private var initialized = false
     private var lifecycleRegistered = false
-    private var unlockReceiverRegistered = false
     private var handlerThread: HandlerThread? = null
     private var backgroundHandler: Handler? = null
-
-    private val timerRunnable = object : Runnable {
-        override fun run() {
-            Log.d(RetentionLog.TAG, "Timer trigger fired.")
-            scheduler?.handleTrigger(RetentionTriggerType.TIMER)
-            backgroundHandler?.postDelayed(this, TIMER_INTERVAL_MS)
-        }
-    }
-
-    private val unlockReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            Log.d(RetentionLog.TAG, "Received unlock broadcast: ${intent?.action}")
-            backgroundHandler?.postDelayed(
-                {
-                    Log.d(RetentionLog.TAG, "Dispatch unlock trigger after delay.")
-                    scheduler?.handleTrigger(RetentionTriggerType.UNLOCK)
-                },
-                UNLOCK_DELAY_MS,
-            )
-        }
-    }
 
     @Synchronized
     fun initialize(context: Context): Boolean {
@@ -68,14 +45,12 @@ internal object RetentionEngine {
         scheduler = RetentionScheduler(app, loadedConfig, store)
         ensureHandler()
         registerLifecycleCallbacks()
-        registerUnlockReceiver()
         Log.d(
             RetentionLog.TAG,
             "Retention config loaded. toolbarItems=${loadedConfig.toolbar.items.size}, reminderItems=${loadedConfig.reminders.items.size}, bucketOrder=${loadedConfig.reminders.bucketOrder}",
         )
         scheduler?.refreshToolbar(app)
         scheduler?.scheduleNextAlarm(force = true)
-        restartRuntimeLoops()
         initialized = true
         Log.d(RetentionLog.TAG, "Retention engine initialized successfully.")
         return true
@@ -108,7 +83,6 @@ internal object RetentionEngine {
         scheduler?.refreshToolbar(application)
         scheduler?.handleTrigger(RetentionTriggerType.BOOT)
         scheduler?.scheduleNextAlarm(force = true)
-        restartRuntimeLoops()
     }
 
     fun onNotificationPermissionGranted(context: Context) {
@@ -119,16 +93,55 @@ internal object RetentionEngine {
         Log.d(RetentionLog.TAG, "Notification permission granted. Recovering retention runtime.")
         scheduler?.refreshToolbar(application)
         scheduler?.scheduleNextAlarm(force = true)
-        restartRuntimeLoops()
     }
 
     fun toolbarNotificationOrNull() = scheduler?.buildToolbarNotification()
 
-    private fun restartRuntimeLoops() {
-        val handler = backgroundHandler ?: return
-        handler.removeCallbacks(timerRunnable)
-        handler.postDelayed(timerRunnable, TIMER_INITIAL_DELAY_MS)
-        Log.d(RetentionLog.TAG, "Runtime loop scheduled. firstDelayMs=$TIMER_INITIAL_DELAY_MS intervalMs=$TIMER_INTERVAL_MS")
+    fun timerInitialDelayMs(): Long = TIMER_INITIAL_DELAY_MS
+
+    fun timerIntervalMs(): Long = TIMER_INTERVAL_MS
+
+    fun isTimerEnabled(): Boolean = config?.policy?.timer?.enabled == true
+
+    fun handleTimerTick() {
+        Log.d(RetentionLog.TAG, "Timer trigger fired.")
+        try {
+            scheduler?.handleTrigger(RetentionTriggerType.TIMER)
+        } catch (throwable: Throwable) {
+            Log.e(RetentionLog.TAG, "Unhandled exception while processing timer trigger.", throwable)
+        }
+    }
+
+    fun handleRuntimeRecovery(context: Context, action: String?) {
+        if (!ensureInitialized(context)) {
+            Log.w(RetentionLog.TAG, "Skip runtime recovery because retention engine is disabled. action=$action")
+            return
+        }
+        Log.d(RetentionLog.TAG, "Handling runtime recovery broadcast. action=$action")
+        when (action) {
+            Intent.ACTION_BOOT_COMPLETED -> handleBoot(context)
+            Intent.ACTION_USER_PRESENT -> {
+                scheduler?.refreshToolbar(application)
+                dispatchUnlockTrigger("user_present")
+            }
+
+            Intent.ACTION_SCREEN_ON -> {
+                scheduler?.refreshToolbar(application)
+                if (isDeviceLocked()) {
+                    Log.d(RetentionLog.TAG, "Skip screen_on unlock proxy because device is still locked.")
+                } else {
+                    dispatchUnlockTrigger("screen_on")
+                }
+            }
+
+            Intent.ACTION_SCREEN_OFF -> {
+                scheduler?.refreshToolbar(application)
+            }
+
+            else -> {
+                scheduler?.refreshToolbar(application)
+            }
+        }
     }
 
     private fun ensureHandler() {
@@ -150,17 +163,23 @@ internal object RetentionEngine {
         Log.d(RetentionLog.TAG, "Activity lifecycle callbacks registered.")
     }
 
-    private fun registerUnlockReceiver() {
-        if (unlockReceiverRegistered) {
-            return
-        }
-        val filter = IntentFilter(Intent.ACTION_USER_PRESENT)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            application.registerReceiver(unlockReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+    private fun dispatchUnlockTrigger(source: String) {
+        backgroundHandler?.postDelayed(
+            {
+                Log.d(RetentionLog.TAG, "Dispatch unlock trigger after delay. source=$source")
+                scheduler?.handleTrigger(RetentionTriggerType.UNLOCK)
+            },
+            UNLOCK_DELAY_MS,
+        )
+    }
+
+    private fun isDeviceLocked(): Boolean {
+        val keyguardManager =
+            application.getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager ?: return false
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
+            keyguardManager.isDeviceLocked
         } else {
-            application.registerReceiver(unlockReceiver, filter)
+            keyguardManager.isKeyguardLocked
         }
-        unlockReceiverRegistered = true
-        Log.d(RetentionLog.TAG, "Unlock receiver registered.")
     }
 }

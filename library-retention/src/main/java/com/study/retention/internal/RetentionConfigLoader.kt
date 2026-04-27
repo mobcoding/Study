@@ -81,6 +81,7 @@ internal object RetentionConfigLoader {
             timer = rawPolicy.timer.toPolicy(defaultInterval = 20, defaultLimit = 30),
             unlock = rawPolicy.unlock.toPolicy(defaultInterval = 10, defaultLimit = 40),
             alarm = rawPolicy.alarm.toPolicy(defaultInterval = 50, defaultLimit = 30),
+            boot = rawPolicy.boot.toPolicy(defaultInterval = 0, defaultLimit = 1, defaultEnabled = false),
         )
         val toolbar = RetentionToolbarSection(
             enabled = rawConfig.toolbar?.enabled ?: true,
@@ -145,9 +146,13 @@ internal object RetentionConfigLoader {
         return runtimeConfig
     }
 
-    private fun RawTriggerPolicy?.toPolicy(defaultInterval: Int, defaultLimit: Int): TriggerPolicy {
+    private fun RawTriggerPolicy?.toPolicy(
+        defaultInterval: Int,
+        defaultLimit: Int,
+        defaultEnabled: Boolean = true,
+    ): TriggerPolicy {
         return TriggerPolicy(
-            enabled = this?.enabled ?: true,
+            enabled = this?.enabled ?: defaultEnabled,
             intervalMinutes = (this?.intervalMinutes ?: defaultInterval).coerceAtLeast(0),
             dailyLimit = (this?.dailyLimit ?: defaultLimit).coerceAtLeast(0),
         )

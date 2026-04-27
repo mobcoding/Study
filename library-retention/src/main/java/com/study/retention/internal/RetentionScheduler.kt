@@ -37,7 +37,7 @@ internal class RetentionScheduler(
             return
         }
         val items = config.toolbar.items.take(MAX_TOOLBAR_ITEMS)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && context is Application) {
+        if (!shouldUseToolbarForegroundService() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && context is Application) {
             runCatching { notifier.showToolbarNotification(items) }
                 .onSuccess { Log.d(RetentionLog.TAG, "Toolbar notification shown directly. itemCount=${items.size}") }
                 .onFailure { Log.w(RetentionLog.TAG, "Failed to show toolbar notification", it) }
@@ -46,7 +46,10 @@ internal class RetentionScheduler(
         }
         val serviceIntent = Intent(safeContext, RetentionToolbarService::class.java)
         ContextCompat.startForegroundService(safeContext, serviceIntent)
-        Log.d(RetentionLog.TAG, "Toolbar foreground service started.")
+        Log.d(
+            RetentionLog.TAG,
+            "Toolbar foreground service started. timerEnabled=${config.policy.timer.enabled} sdk=${Build.VERSION.SDK_INT}",
+        )
     }
 
     fun handleTrigger(trigger: RetentionTriggerType) {
@@ -104,9 +107,12 @@ internal class RetentionScheduler(
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
-        alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent)
+        scheduleAlarm(alarmManager, triggerAt, pendingIntent)
         store.setNextScheduledAlarmAt(triggerAt)
-        Log.d(RetentionLog.TAG, "Alarm scheduled. force=$force triggerAt=$triggerAt intervalMinutes=${policy.intervalMinutes}")
+        Log.d(
+            RetentionLog.TAG,
+            "Alarm scheduled. force=$force triggerAt=$triggerAt intervalMinutes=${policy.intervalMinutes} exact=${canScheduleExactAlarm(alarmManager)}",
+        )
     }
 
     fun buildToolbarNotification(): android.app.Notification {
@@ -190,7 +196,8 @@ internal class RetentionScheduler(
         return when (trigger) {
             RetentionTriggerType.TIMER -> config.policy.timer
             RetentionTriggerType.UNLOCK -> config.policy.unlock
-            RetentionTriggerType.ALARM, RetentionTriggerType.BOOT -> config.policy.alarm
+            RetentionTriggerType.ALARM -> config.policy.alarm
+            RetentionTriggerType.BOOT -> config.policy.boot
         }
     }
 
@@ -212,6 +219,38 @@ internal class RetentionScheduler(
             "Quiet hours check. currentHour=$currentHour start=${quietHours.startHourInclusive} end=${quietHours.endHourExclusive} inQuietHours=$inQuietHours",
         )
         return inQuietHours
+    }
+
+    private fun shouldUseToolbarForegroundService(): Boolean {
+        return config.policy.timer.enabled || config.policy.unlock.enabled
+    }
+
+    private fun scheduleAlarm(
+        alarmManager: AlarmManager,
+        triggerAt: Long,
+        pendingIntent: PendingIntent,
+    ) {
+        when {
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && canScheduleExactAlarm(alarmManager) -> {
+                alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent)
+            }
+
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT -> {
+                alarmManager.setExact(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent)
+            }
+
+            else -> {
+                alarmManager.set(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent)
+            }
+        }
+    }
+
+    private fun canScheduleExactAlarm(alarmManager: AlarmManager): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            alarmManager.canScheduleExactAlarms()
+        } else {
+            true
+        }
     }
 
     private companion object {

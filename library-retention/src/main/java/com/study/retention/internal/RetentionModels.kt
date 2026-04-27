@@ -7,7 +7,7 @@ internal enum class RetentionTriggerType(val policyKey: String, val extraValue: 
     TIMER("timer", "timer"),
     UNLOCK("unlock", "unlock"),
     ALARM("alarm", "alarm"),
-    BOOT("alarm", "boot"),
+    BOOT("boot", "boot"),
 }
 
 internal data class RetentionRuntimeConfig(
@@ -38,6 +38,7 @@ internal data class RetentionPolicySection(
     val timer: TriggerPolicy,
     val unlock: TriggerPolicy,
     val alarm: TriggerPolicy,
+    val boot: TriggerPolicy,
 )
 
 internal data class GlobalCooldownPolicy(
@@ -129,6 +130,7 @@ internal data class RawPolicySection(
     val timer: RawTriggerPolicy? = null,
     val unlock: RawTriggerPolicy? = null,
     val alarm: RawTriggerPolicy? = null,
+    val boot: RawTriggerPolicy? = null,
 )
 
 internal data class RawQuietHours(
