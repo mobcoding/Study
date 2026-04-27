@@ -1,11 +1,11 @@
 ext {
-    APPLICATION_ID = "com.zero.study"
+    APPLICATION_ID = "com.study.example"
     VERSION_NAME = "1.1.0"
     VERSION_CODE = "240605"
 
-    STORE_PATH = "E:\\WorkSpace\\study.jks"
+    STORE_PATH = "../sign/test.jks"
     STORE_PASSWORD = "123456"
-    KEY_ALIAS = "study"
+    KEY_ALIAS = "key0"
     KEY_PASSWORD = "123456"
 
     MANIFEST_ADMOB_APP_ID = "ca-app-pub-3940256099942544~3347511713"
