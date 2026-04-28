@@ -1,4 +1,4 @@
-<resources>
+﻿<resources>
     <string name="retention_toolbar_channel_name">Barre de rétention</string>
     <string name="retention_reminder_channel_name">Rappels de rétention</string>
     <string name="retention_reminder_cleanup_message">Terminez le nettoyage du jour en un geste.</string>
@@ -9,13 +9,13 @@
     <string name="retention_reminder_style_action">Essayer</string>
     <string name="retention_reminder_setting_message">Vérifiez vos réglages et gardez tout bien ajusté.</string>
     <string name="retention_reminder_setting_action">Vérifier</string>
-    <string name="retention_demo_health_tools">Outils</string>
-    <string name="retention_demo_health_alarm">Alarme</string>
-    <string name="retention_demo_blood_pressure">Pression artérielle</string>
-    <string name="retention_demo_heart_rate">Fréquence cardiaque</string>
-    <string name="retention_demo_blood_glucose">Glycémie</string>
-    <string name="retention_demo_health_record">Enregistrer</string>
-    <string name="retention_demo_notification_channel_blood_pressure">Rappel de pression artérielle</string>
-    <string name="retention_demo_notification_channel_heart_rate">Rappel de fréquence cardiaque</string>
-    <string name="retention_demo_notification_channel_blood_glucose">Rappel de glycémie</string>
+    <string name="retention_sdk_entry_primary">Accès rapide</string>
+    <string name="retention_sdk_channel_reminder">Rappels</string>
+    <string name="retention_sdk_entry_secondary">Fonction principale</string>
+    <string name="retention_sdk_entry_tertiary">Fonction secondaire</string>
+    <string name="retention_sdk_entry_quaternary">Plus de fonctions</string>
+    <string name="retention_sdk_action_open">Ouvrir</string>
+    <string name="retention_sdk_reminder_secondary">Reprenez votre fonction principale</string>
+    <string name="retention_sdk_reminder_tertiary">Reprenez votre fonction secondaire</string>
+    <string name="retention_sdk_reminder_quaternary">Explorez plus de fonctions</string>
 </resources>

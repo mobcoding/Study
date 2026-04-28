@@ -1,4 +1,4 @@
-<resources>
+﻿<resources>
     <string name="retention_toolbar_channel_name">Retention Toolbar</string>
     <string name="retention_reminder_channel_name">Retention Reminder</string>
     <string name="retention_reminder_cleanup_message">Finish today\'s cleanup with one tap.</string>
@@ -9,13 +9,13 @@
     <string name="retention_reminder_style_action">Try</string>
     <string name="retention_reminder_setting_message">Review your settings and keep everything tuned.</string>
     <string name="retention_reminder_setting_action">Review</string>
-    <string name="retention_demo_health_tools">Tools</string>
-    <string name="retention_demo_health_alarm">Alarm</string>
-    <string name="retention_demo_blood_pressure">Blood Pressure</string>
-    <string name="retention_demo_heart_rate">Heart Rate</string>
-    <string name="retention_demo_blood_glucose">Blood Glucose</string>
-    <string name="retention_demo_health_record">Record</string>
-    <string name="retention_demo_notification_channel_blood_pressure">Blood Pressure Remind</string>
-    <string name="retention_demo_notification_channel_heart_rate">Heart Rate Remind</string>
-    <string name="retention_demo_notification_channel_blood_glucose">Blood Glucose Remind</string>
+    <string name="retention_sdk_entry_primary">Quick Access</string>
+    <string name="retention_sdk_channel_reminder">Reminders</string>
+    <string name="retention_sdk_entry_secondary">Primary Feature</string>
+    <string name="retention_sdk_entry_tertiary">Secondary Feature</string>
+    <string name="retention_sdk_entry_quaternary">More Features</string>
+    <string name="retention_sdk_action_open">Open</string>
+    <string name="retention_sdk_reminder_secondary">Resume your primary feature</string>
+    <string name="retention_sdk_reminder_tertiary">Resume your secondary feature</string>
+    <string name="retention_sdk_reminder_quaternary">Explore more features</string>
 </resources>

@@ -1,11 +1,11 @@
-{
+﻿{
   "version": 1,
   "notification": {
-    "smallIcon": "retention_demo_ic_heart_rate",
+    "smallIcon": "retention_sdk_ic_primary",
     "toolbarChannelId": "retention_toolbar",
-    "toolbarChannelNameRes": "retention_demo_health_tools",
+    "toolbarChannelNameRes": "retention_sdk_entry_primary",
     "reminderChannelId": "retention_reminder",
-    "reminderChannelNameRes": "retention_demo_health_alarm",
+    "reminderChannelNameRes": "retention_sdk_channel_reminder",
     "toolbarNotificationId": 105031,
     "reminderNotificationBaseId": 500000,
     "toolbarCollapsedLayout": "retention_toolbar_notification_compact",
@@ -44,7 +44,7 @@
       "dailyLimit": 30
     },
     "boot": {
-      "enabled": true,
+      "enabled": false,
       "intervalMinutes": 0,
       "dailyLimit": 10
     },
@@ -65,49 +65,49 @@
     }
   },
   "runtime": {
-    "workManagerEnabled": false,
-    "heartbeatIntervalMinutes": 15
+    "workManagerEnabled": true,
+    "heartbeatIntervalMinutes": 10
   },
   "toolbar": {
     "enabled": true,
     "items": [
       {
-        "id": "toolbar_health_tools",
-        "titleRes": "retention_demo_health_tools",
-        "icon": "retention_demo_ic_alarm_clock",
+        "id": "toolbar_primary",
+        "titleRes": "retention_sdk_entry_primary",
+        "icon": "retention_sdk_ic_primary",
         "activityClass": "com.zero.study.ui.activity.MainActivity",
         "extras": {
-          "target": "health_tools",
+          "target": "primary",
           "jumpTo": 0
         }
       },
       {
-        "id": "toolbar_blood_pressure",
-        "titleRes": "retention_demo_blood_pressure",
-        "icon": "retention_demo_ic_blood_pressure",
+        "id": "toolbar_secondary",
+        "titleRes": "retention_sdk_entry_secondary",
+        "icon": "retention_sdk_ic_secondary",
         "activityClass": "com.zero.study.ui.activity.MainActivity",
         "extras": {
-          "target": "blood_pressure",
+          "target": "secondary",
           "jumpTo": 1
         }
       },
       {
-        "id": "toolbar_heart_rate",
-        "titleRes": "retention_demo_heart_rate",
-        "icon": "retention_demo_ic_heart_rate",
+        "id": "toolbar_tertiary",
+        "titleRes": "retention_sdk_entry_tertiary",
+        "icon": "retention_sdk_ic_tertiary",
         "activityClass": "com.zero.study.ui.activity.MainActivity",
         "extras": {
-          "target": "heart_rate",
+          "target": "tertiary",
           "jumpTo": 2
         }
       },
       {
-        "id": "toolbar_blood_glucose",
-        "titleRes": "retention_demo_blood_glucose",
-        "icon": "retention_demo_ic_blood_glucose",
+        "id": "toolbar_quaternary",
+        "titleRes": "retention_sdk_entry_quaternary",
+        "icon": "retention_sdk_ic_quaternary",
         "activityClass": "com.zero.study.ui.activity.MainActivity",
         "extras": {
-          "target": "blood_glucose",
+          "target": "quaternary",
           "jumpTo": 3
         }
       }
@@ -122,50 +122,50 @@
     ],
     "items": [
       {
-        "id": "health_tools_reminder",
+        "id": "primary_reminder",
         "bucketId": 500020,
-        "messageRes": "retention_demo_health_tools",
-        "actionLabelRes": "retention_demo_health_record",
-        "largeIcon": "retention_demo_ic_alarm_clock",
+        "messageRes": "retention_sdk_entry_primary",
+        "actionLabelRes": "retention_sdk_action_open",
+        "largeIcon": "retention_sdk_ic_primary",
         "activityClass": "com.zero.study.ui.activity.MainActivity",
         "extras": {
-          "target": "health_tools",
+          "target": "primary",
           "jumpTo": 0
         }
       },
       {
-        "id": "blood_pressure_reminder",
+        "id": "secondary_reminder",
         "bucketId": 500030,
-        "messageRes": "retention_demo_notification_channel_blood_pressure",
-        "actionLabelRes": "retention_demo_health_record",
-        "largeIcon": "retention_demo_ic_blood_pressure",
+        "messageRes": "retention_sdk_reminder_secondary",
+        "actionLabelRes": "retention_sdk_action_open",
+        "largeIcon": "retention_sdk_ic_secondary",
         "activityClass": "com.zero.study.ui.activity.MainActivity",
         "extras": {
-          "target": "blood_pressure",
+          "target": "secondary",
           "jumpTo": 1
         }
       },
       {
-        "id": "heart_rate_reminder",
+        "id": "tertiary_reminder",
         "bucketId": 500001,
-        "messageRes": "retention_demo_notification_channel_heart_rate",
-        "actionLabelRes": "retention_demo_health_record",
-        "largeIcon": "retention_demo_ic_heart_rate",
+        "messageRes": "retention_sdk_reminder_tertiary",
+        "actionLabelRes": "retention_sdk_action_open",
+        "largeIcon": "retention_sdk_ic_tertiary",
         "activityClass": "com.zero.study.ui.activity.MainActivity",
         "extras": {
-          "target": "heart_rate",
+          "target": "tertiary",
           "jumpTo": 2
         }
       },
       {
-        "id": "blood_glucose_reminder",
+        "id": "quaternary_reminder",
         "bucketId": 500002,
-        "messageRes": "retention_demo_notification_channel_blood_glucose",
-        "actionLabelRes": "retention_demo_health_record",
-        "largeIcon": "retention_demo_ic_blood_glucose",
+        "messageRes": "retention_sdk_reminder_quaternary",
+        "actionLabelRes": "retention_sdk_action_open",
+        "largeIcon": "retention_sdk_ic_quaternary",
         "activityClass": "com.zero.study.ui.activity.MainActivity",
         "extras": {
-          "target": "blood_glucose",
+          "target": "quaternary",
           "jumpTo": 3
         }
       }

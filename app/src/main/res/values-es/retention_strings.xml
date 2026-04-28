@@ -1,4 +1,4 @@
-<resources>
+﻿<resources>
     <string name="retention_toolbar_channel_name">Barra de retención</string>
     <string name="retention_reminder_channel_name">Recordatorios de retención</string>
     <string name="retention_reminder_cleanup_message">Termina la limpieza de hoy con un toque.</string>
@@ -9,13 +9,13 @@
     <string name="retention_reminder_style_action">Probar</string>
     <string name="retention_reminder_setting_message">Revisa tus ajustes y mantén todo afinado.</string>
     <string name="retention_reminder_setting_action">Revisar</string>
-    <string name="retention_demo_health_tools">Herramientas</string>
-    <string name="retention_demo_health_alarm">Alarma</string>
-    <string name="retention_demo_blood_pressure">Presión arterial</string>
-    <string name="retention_demo_heart_rate">Frecuencia cardíaca</string>
-    <string name="retention_demo_blood_glucose">Glucosa en sangre</string>
-    <string name="retention_demo_health_record">Registrar</string>
-    <string name="retention_demo_notification_channel_blood_pressure">Recordatorio de presión arterial</string>
-    <string name="retention_demo_notification_channel_heart_rate">Recordatorio de frecuencia cardíaca</string>
-    <string name="retention_demo_notification_channel_blood_glucose">Recordatorio de glucosa en sangre</string>
+    <string name="retention_sdk_entry_primary">Acceso rápido</string>
+    <string name="retention_sdk_channel_reminder">Recordatorios</string>
+    <string name="retention_sdk_entry_secondary">Función principal</string>
+    <string name="retention_sdk_entry_tertiary">Función secundaria</string>
+    <string name="retention_sdk_entry_quaternary">Más funciones</string>
+    <string name="retention_sdk_action_open">Abrir</string>
+    <string name="retention_sdk_reminder_secondary">Vuelve a tu función principal</string>
+    <string name="retention_sdk_reminder_tertiary">Vuelve a tu función secundaria</string>
+    <string name="retention_sdk_reminder_quaternary">Explora más funciones</string>
 </resources>
