@@ -14,8 +14,20 @@ internal object RetentionWorkScheduler {
 
     fun sync(context: Context, config: RetentionRuntimeConfig) {
         val appContext = context.applicationContext
+        val workManager =
+            runCatching { WorkManager.getInstance(appContext) }
+                .onFailure {
+                    Log.w(
+                        RetentionLog.TAG,
+                        "WorkManager unavailable while syncing retention heartbeat. Skip scheduling.",
+                        it,
+                    )
+                }.getOrNull()
+        if (workManager == null) {
+            return
+        }
         if (!config.runtime.workManagerEnabled) {
-            WorkManager.getInstance(appContext).cancelUniqueWork(UNIQUE_WORK_NAME)
+            workManager.cancelUniqueWork(UNIQUE_WORK_NAME)
             Log.d(RetentionLog.TAG, "WorkManager heartbeat disabled. uniqueWork=$UNIQUE_WORK_NAME")
             return
         }
@@ -25,7 +37,7 @@ internal object RetentionWorkScheduler {
                 TimeUnit.MINUTES,
             ).addTag(UNIQUE_WORK_NAME)
                 .build()
-        WorkManager.getInstance(appContext).enqueueUniquePeriodicWork(
+        workManager.enqueueUniquePeriodicWork(
             UNIQUE_WORK_NAME,
             ExistingPeriodicWorkPolicy.UPDATE,
             request,

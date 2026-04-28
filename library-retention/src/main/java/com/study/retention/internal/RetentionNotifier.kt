@@ -45,6 +45,11 @@ internal class RetentionNotifier(
         return notification
     }
 
+    fun buildToolbarForegroundNotification(items: List<ToolbarItemConfig>): Notification {
+        ensureToolbarChannel()
+        return buildToolbarNotification(items)
+    }
+
     fun cancelToolbarNotification() {
         NotificationManagerCompat.from(context).cancel(config.notification.toolbarNotificationId)
         Log.d(RetentionLog.TAG, "Toolbar notification cancelled.")

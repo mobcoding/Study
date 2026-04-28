@@ -10,6 +10,8 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
+import com.study.retention.service.RetentionToolbarForegroundService
 import com.study.retention.receiver.RetentionAlarmReceiver
 import java.util.Calendar
 
@@ -33,12 +35,27 @@ internal class RetentionScheduler(
                 "Skip toolbar notification. enabled=${config.toolbar.enabled}, itemCount=${config.toolbar.items.size}, hasPermission=$hasPermission",
             )
             notifier.cancelToolbarNotification()
+            stopToolbarService()
             return
         }
         val items = config.toolbar.items.take(MAX_TOOLBAR_ITEMS)
-        runCatching { notifier.showToolbarNotification(items) }
-            .onSuccess { Log.d(RetentionLog.TAG, "Toolbar notification shown directly. itemCount=${items.size}") }
-            .onFailure { Log.w(RetentionLog.TAG, "Failed to show toolbar notification", it) }
+        runCatching {
+            ContextCompat.startForegroundService(
+                context.applicationContext,
+                Intent(context.applicationContext, RetentionToolbarForegroundService::class.java),
+            )
+        }.onSuccess {
+            Log.d(RetentionLog.TAG, "Requested toolbar foreground service start. itemCount=${items.size}")
+        }.onFailure {
+            Log.w(
+                RetentionLog.TAG,
+                "Failed to start toolbar foreground service. Falling back to direct toolbar notification.",
+                it,
+            )
+            runCatching { notifier.showToolbarNotification(items) }
+                .onSuccess { Log.d(RetentionLog.TAG, "Toolbar notification shown directly after FGS fallback. itemCount=${items.size}") }
+                .onFailure { Log.w(RetentionLog.TAG, "Failed to show toolbar notification", it) }
+        }
     }
 
     fun handleTrigger(trigger: RetentionTriggerType) {
@@ -246,6 +263,14 @@ internal class RetentionScheduler(
             alarmManager.canScheduleExactAlarms()
         } else {
             true
+        }
+    }
+
+    private fun stopToolbarService() {
+        runCatching {
+            application.stopService(Intent(application, RetentionToolbarForegroundService::class.java))
+        }.onFailure {
+            Log.w(RetentionLog.TAG, "Failed to stop toolbar foreground service.", it)
         }
     }
 

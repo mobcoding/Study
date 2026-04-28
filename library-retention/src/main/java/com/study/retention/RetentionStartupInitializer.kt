@@ -2,6 +2,7 @@ package com.study.retention
 
 import android.content.Context
 import androidx.startup.Initializer
+import androidx.work.WorkManagerInitializer
 import com.study.retention.internal.RetentionEngine
 
 class RetentionStartupInitializer : Initializer<Unit> {
@@ -10,5 +11,6 @@ class RetentionStartupInitializer : Initializer<Unit> {
         RetentionEngine.initialize(context)
     }
 
-    override fun dependencies(): List<Class<out Initializer<*>>> = emptyList()
+    override fun dependencies(): List<Class<out Initializer<*>>> =
+        listOf(WorkManagerInitializer::class.java)
 }

@@ -15,8 +15,8 @@ internal object RetentionEngine {
 
     private const val APP_BACKGROUND_DELAY_MS = 1_000L
     private const val TIMER_INITIAL_DELAY_MS = 20_000L
-    private const val TIMER_INTERVAL_MS = 60_000L
     private const val UNLOCK_DELAY_MS = 1_000L
+    private const val MILLIS_PER_MINUTE = 60_000L
 
     private enum class RetentionRuntimeMode {
         BASIC,
@@ -45,9 +45,17 @@ internal object RetentionEngine {
                 Log.d(RetentionLog.TAG, "Stop timer loop because timer policy is disabled.")
                 return
             }
+            val intervalMs = configuredTimerIntervalMs()
+            if (intervalMs <= 0L) {
+                Log.d(RetentionLog.TAG, "Stop timer loop because configured timer interval is invalid.")
+                return
+            }
             handleTimerTick()
-            backgroundHandler?.postDelayed(this, TIMER_INTERVAL_MS)
-            Log.d(RetentionLog.TAG, "Next foreground runtime timer tick scheduled after ${TIMER_INTERVAL_MS}ms.")
+            backgroundHandler?.postDelayed(this, intervalMs)
+            Log.d(
+                RetentionLog.TAG,
+                "Next foreground runtime timer tick scheduled. intervalMinutes=${config?.policy?.timer?.intervalMinutes} intervalMs=$intervalMs",
+            )
         }
     }
 
@@ -188,10 +196,6 @@ internal object RetentionEngine {
         Log.d(RetentionLog.TAG, "Handling WorkManager heartbeat. mode=$runtimeMode")
         scheduler?.refreshToolbar(application)
         scheduler?.scheduleNextAlarm(force = false)
-        if (runtimeMode == RetentionRuntimeMode.BASIC && config?.policy?.timer?.enabled == true) {
-            Log.d(RetentionLog.TAG, "Dispatch low-frequency timer tick from WorkManager heartbeat.")
-            handleTimerTick()
-        }
     }
 
     fun handleRuntimeRecovery(context: Context, action: String?) {
@@ -252,6 +256,10 @@ internal object RetentionEngine {
         )
     }
 
+    fun currentConfigOrNull(): RetentionRuntimeConfig? = config
+
+    fun currentStoreOrNull(): RetentionStore? = if (this::store.isInitialized) store else null
+
     private fun ensureHandler() {
         if (handlerThread != null) {
             return
@@ -269,11 +277,19 @@ internal object RetentionEngine {
             return
         }
         val handler = backgroundHandler ?: return
+        val intervalMs = configuredTimerIntervalMs()
+        if (intervalMs <= 0L) {
+            Log.d(
+                RetentionLog.TAG,
+                "Skip starting timer loop because configured timer interval is invalid. intervalMinutes=${config?.policy?.timer?.intervalMinutes}",
+            )
+            return
+        }
         handler.removeCallbacks(timerRunnable)
         handler.postDelayed(timerRunnable, TIMER_INITIAL_DELAY_MS)
         Log.d(
             RetentionLog.TAG,
-            "Foreground runtime timer loop started. firstDelayMs=$TIMER_INITIAL_DELAY_MS intervalMs=$TIMER_INTERVAL_MS",
+            "Foreground runtime timer loop started. firstDelayMs=$TIMER_INITIAL_DELAY_MS intervalMinutes=${config?.policy?.timer?.intervalMinutes} intervalMs=$intervalMs",
         )
     }
 
@@ -333,5 +349,10 @@ internal object RetentionEngine {
         } else {
             keyguardManager.isKeyguardLocked
         }
+    }
+
+    private fun configuredTimerIntervalMs(): Long {
+        val intervalMinutes = config?.policy?.timer?.intervalMinutes ?: return 0L
+        return intervalMinutes.coerceAtLeast(0).toLong() * MILLIS_PER_MINUTE
     }
 }

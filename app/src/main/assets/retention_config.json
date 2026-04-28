@@ -21,7 +21,7 @@
     },
     "globalCooldown": {
       "enabled": false,
-      "intervalMinutes": 15
+      "intervalMinutes": 30
     },
     "timer": {
       "enabled": false,
@@ -29,9 +29,14 @@
       "dailyLimit": 30
     },
     "unlock": {
-      "enabled": false,
-      "intervalMinutes": 60,
+      "enabled": true,
+      "intervalMinutes": 1,
       "dailyLimit": 40
+    },
+    "screenOff": {
+      "enabled": true,
+      "intervalMinutes": 1,
+      "dailyLimit": 10
     },
     "alarm": {
       "enabled": false,
@@ -39,18 +44,13 @@
       "dailyLimit": 30
     },
     "boot": {
-      "enabled": true,
+      "enabled": false,
       "intervalMinutes": 0,
       "dailyLimit": 10
     },
     "appBackground": {
       "enabled": false,
       "intervalMinutes": 30,
-      "dailyLimit": 10
-    },
-    "screenOff": {
-      "enabled": false,
-      "intervalMinutes": 60,
       "dailyLimit": 10
     },
     "packageReplaced": {
@@ -65,7 +65,7 @@
     }
   },
   "runtime": {
-    "workManagerEnabled": true,
+    "workManagerEnabled": false,
     "heartbeatIntervalMinutes": 15
   },
   "toolbar": {
