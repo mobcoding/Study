@@ -50,7 +50,7 @@ internal object RetentionBuiltInConfigFactory {
                 // TIMER 触发频控：两次展示之间至少间隔 20 分钟，每天最多展示 30 次。
                 timerPolicy = ReminderPolicy(intervalMinutes = 20, dailyLimit = 30),
                 // UNLOCK 触发频控：两次展示之间至少间隔 10 分钟，每天最多展示 40 次。
-                unlockPolicy = ReminderPolicy(intervalMinutes = 10, dailyLimit = 40),
+                unlockPolicy = ReminderPolicy(intervalMinutes = 1, dailyLimit = 40),
                 // MEDIA 触发频控：两次展示之间至少间隔 40 分钟，每天最多展示 30 次。
                 mediaPolicy = ReminderPolicy(intervalMinutes = 40, dailyLimit = 30),
                 // 后台闹钟触发策略：每 50 分钟调度一次系统 Alarm。

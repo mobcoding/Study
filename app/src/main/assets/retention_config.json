@@ -44,7 +44,7 @@
       "dailyLimit": 30
     },
     "boot": {
-      "enabled": false,
+      "enabled": true,
       "intervalMinutes": 0,
       "dailyLimit": 10
     },

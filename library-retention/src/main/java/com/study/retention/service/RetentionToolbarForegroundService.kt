@@ -44,7 +44,16 @@ internal class RetentionToolbarForegroundService : Service() {
             Log.d(RetentionLog.TAG, "Toolbar foreground service started. itemCount=${items.size}")
         } catch (throwable: Throwable) {
             Log.w(RetentionLog.TAG, "Failed to enter foreground for toolbar service.", throwable)
-//            stopSelf()
+            runCatching {
+                RetentionNotifier(applicationContext, config).showToolbarNotification(items)
+            }.onSuccess {
+                Log.d(
+                    RetentionLog.TAG,
+                    "Toolbar notification shown directly after foreground service failure. itemCount=${items.size}",
+                )
+            }.onFailure {
+                Log.w(RetentionLog.TAG, "Failed to show toolbar notification after foreground service failure.", it)
+            }
         }
     }
 
