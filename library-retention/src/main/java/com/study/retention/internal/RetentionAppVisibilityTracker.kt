@@ -14,7 +14,10 @@ internal object RetentionAppVisibilityTracker : Application.ActivityLifecycleCal
     override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) = Unit
 
     override fun onActivityStarted(activity: Activity) {
-        foregroundCount.incrementAndGet()
+        val previous = foregroundCount.getAndIncrement()
+        if (previous == 0) {
+            RetentionEngine.onAppForegroundEntered()
+        }
     }
 
     override fun onActivityResumed(activity: Activity) = Unit

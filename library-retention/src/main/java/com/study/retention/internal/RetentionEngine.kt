@@ -2,8 +2,10 @@ package com.study.retention.internal
 
 import android.app.Application
 import android.app.KeyguardManager
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
@@ -16,6 +18,11 @@ internal object RetentionEngine {
     private const val TIMER_INTERVAL_MS = 60_000L
     private const val UNLOCK_DELAY_MS = 1_000L
 
+    private enum class RetentionRuntimeMode {
+        BASIC,
+        FOREGROUND,
+    }
+
     @Volatile
     private var config: RetentionRuntimeConfig? = null
     private lateinit var application: Application
@@ -23,8 +30,33 @@ internal object RetentionEngine {
     private var scheduler: RetentionScheduler? = null
     private var initialized = false
     private var lifecycleRegistered = false
+    private var runtimeReceiverRegistered = false
     private var handlerThread: HandlerThread? = null
     private var backgroundHandler: Handler? = null
+    private val foregroundSessions = linkedSetOf<String>()
+    private var runtimeMode = RetentionRuntimeMode.BASIC
+    private val timerRunnable = object : Runnable {
+        override fun run() {
+            if (runtimeMode != RetentionRuntimeMode.FOREGROUND) {
+                Log.d(RetentionLog.TAG, "Stop timer loop because runtime mode is basic.")
+                return
+            }
+            if (config?.policy?.timer?.enabled != true) {
+                Log.d(RetentionLog.TAG, "Stop timer loop because timer policy is disabled.")
+                return
+            }
+            handleTimerTick()
+            backgroundHandler?.postDelayed(this, TIMER_INTERVAL_MS)
+            Log.d(RetentionLog.TAG, "Next foreground runtime timer tick scheduled after ${TIMER_INTERVAL_MS}ms.")
+        }
+    }
+
+    private val runtimeReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            val safeContext = context ?: return
+            handleRuntimeRecovery(safeContext, intent?.action)
+        }
+    }
 
     @Synchronized
     fun initialize(context: Context): Boolean {
@@ -46,12 +78,13 @@ internal object RetentionEngine {
         scheduler = RetentionScheduler(app, loadedConfig, store)
         ensureHandler()
         registerLifecycleCallbacks()
+        registerRuntimeReceivers()
         Log.d(
             RetentionLog.TAG,
             "Retention config loaded. toolbarItems=${loadedConfig.toolbar.items.size}, reminderItems=${loadedConfig.reminders.items.size}, bucketOrder=${loadedConfig.reminders.bucketOrder}",
         )
-        scheduler?.refreshToolbar(app)
         scheduler?.scheduleNextAlarm(force = true)
+        RetentionWorkScheduler.sync(app, loadedConfig)
         initialized = true
         Log.d(RetentionLog.TAG, "Retention engine initialized successfully.")
         return true
@@ -96,13 +129,47 @@ internal object RetentionEngine {
         scheduler?.scheduleNextAlarm(force = true)
     }
 
-    fun toolbarNotificationOrNull() = scheduler?.buildToolbarNotification()
+    fun enterForegroundRuntime(context: Context, sessionId: String, source: String) {
+        if (!ensureInitialized(context)) {
+            Log.w(RetentionLog.TAG, "Skip entering foreground runtime because retention engine is disabled.")
+            return
+        }
+        if (sessionId.isBlank()) {
+            Log.w(RetentionLog.TAG, "Skip entering foreground runtime because sessionId is blank.")
+            return
+        }
+        foregroundSessions += sessionId
+        runtimeMode = RetentionRuntimeMode.FOREGROUND
+        Log.d(
+            RetentionLog.TAG,
+            "Foreground runtime entered. sessionId=$sessionId source=$source activeSessions=${foregroundSessions.size}",
+        )
+        startTimerLoop()
+    }
 
-    fun timerInitialDelayMs(): Long = TIMER_INITIAL_DELAY_MS
+    fun exitForegroundRuntime(sessionId: String?) {
+        if (sessionId.isNullOrBlank()) {
+            foregroundSessions.clear()
+        } else {
+            foregroundSessions -= sessionId
+        }
+        if (foregroundSessions.isEmpty()) {
+            runtimeMode = RetentionRuntimeMode.BASIC
+            stopTimerLoop()
+        }
+        Log.d(
+            RetentionLog.TAG,
+            "Foreground runtime exited. sessionId=$sessionId activeSessions=${foregroundSessions.size} mode=$runtimeMode",
+        )
+    }
 
-    fun timerIntervalMs(): Long = TIMER_INTERVAL_MS
-
-    fun isTimerEnabled(): Boolean = config?.policy?.timer?.enabled == true
+    fun onAppForegroundEntered() {
+        if (config == null) {
+            return
+        }
+        Log.d(RetentionLog.TAG, "App entered foreground. Refreshing retention runtime surfaces.")
+        scheduler?.refreshToolbar(application)
+    }
 
     fun handleTimerTick() {
         Log.d(RetentionLog.TAG, "Timer trigger fired.")
@@ -110,6 +177,20 @@ internal object RetentionEngine {
             scheduler?.handleTrigger(RetentionTriggerType.TIMER)
         } catch (throwable: Throwable) {
             Log.e(RetentionLog.TAG, "Unhandled exception while processing timer trigger.", throwable)
+        }
+    }
+
+    fun handleHeartbeatWork(context: Context) {
+        if (!ensureInitialized(context)) {
+            Log.w(RetentionLog.TAG, "Skip WorkManager heartbeat because retention engine is disabled.")
+            return
+        }
+        Log.d(RetentionLog.TAG, "Handling WorkManager heartbeat. mode=$runtimeMode")
+        scheduler?.refreshToolbar(application)
+        scheduler?.scheduleNextAlarm(force = false)
+        if (runtimeMode == RetentionRuntimeMode.BASIC && config?.policy?.timer?.enabled == true) {
+            Log.d(RetentionLog.TAG, "Dispatch low-frequency timer tick from WorkManager heartbeat.")
+            handleTimerTick()
         }
     }
 
@@ -121,6 +202,11 @@ internal object RetentionEngine {
         Log.d(RetentionLog.TAG, "Handling runtime recovery broadcast. action=$action")
         when (action) {
             Intent.ACTION_BOOT_COMPLETED -> handleBoot(context)
+            Intent.ACTION_POWER_CONNECTED -> {
+                scheduler?.refreshToolbar(application)
+                handleImmediateTrigger(RetentionTriggerType.CHARGING, "power_connected")
+            }
+
             Intent.ACTION_USER_PRESENT -> {
                 scheduler?.refreshToolbar(application)
                 dispatchUnlockTrigger("user_present")
@@ -176,6 +262,26 @@ internal object RetentionEngine {
         Log.d(RetentionLog.TAG, "Background handler thread started.")
     }
 
+    private fun startTimerLoop() {
+        ensureHandler()
+        if (config?.policy?.timer?.enabled != true) {
+            Log.d(RetentionLog.TAG, "Skip starting timer loop because timer policy is disabled.")
+            return
+        }
+        val handler = backgroundHandler ?: return
+        handler.removeCallbacks(timerRunnable)
+        handler.postDelayed(timerRunnable, TIMER_INITIAL_DELAY_MS)
+        Log.d(
+            RetentionLog.TAG,
+            "Foreground runtime timer loop started. firstDelayMs=$TIMER_INITIAL_DELAY_MS intervalMs=$TIMER_INTERVAL_MS",
+        )
+    }
+
+    private fun stopTimerLoop() {
+        backgroundHandler?.removeCallbacks(timerRunnable)
+        Log.d(RetentionLog.TAG, "Foreground runtime timer loop stopped.")
+    }
+
     private fun registerLifecycleCallbacks() {
         if (lifecycleRegistered) {
             return
@@ -183,6 +289,25 @@ internal object RetentionEngine {
         application.registerActivityLifecycleCallbacks(RetentionAppVisibilityTracker)
         lifecycleRegistered = true
         Log.d(RetentionLog.TAG, "Activity lifecycle callbacks registered.")
+    }
+
+    private fun registerRuntimeReceivers() {
+        if (runtimeReceiverRegistered) {
+            return
+        }
+        val filter = IntentFilter().apply {
+            addAction(Intent.ACTION_POWER_CONNECTED)
+            addAction(Intent.ACTION_USER_PRESENT)
+            addAction(Intent.ACTION_SCREEN_ON)
+            addAction(Intent.ACTION_SCREEN_OFF)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            application.registerReceiver(runtimeReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            application.registerReceiver(runtimeReceiver, filter)
+        }
+        runtimeReceiverRegistered = true
+        Log.d(RetentionLog.TAG, "Runtime receivers registered.")
     }
 
     private fun dispatchUnlockTrigger(source: String) {

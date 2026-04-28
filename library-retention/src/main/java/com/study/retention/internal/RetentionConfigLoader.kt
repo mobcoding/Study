@@ -85,6 +85,11 @@ internal object RetentionConfigLoader {
             appBackground = rawPolicy.appBackground.toPolicy(defaultInterval = 30, defaultLimit = 10, defaultEnabled = false),
             screenOff = rawPolicy.screenOff.toPolicy(defaultInterval = 30, defaultLimit = 10, defaultEnabled = false),
             packageReplaced = rawPolicy.packageReplaced.toPolicy(defaultInterval = 0, defaultLimit = 1, defaultEnabled = false),
+            charging = rawPolicy.charging.toPolicy(defaultInterval = 30, defaultLimit = 10, defaultEnabled = false),
+        )
+        val runtime = RetentionRuntimeSection(
+            workManagerEnabled = rawConfig.runtime?.workManagerEnabled ?: true,
+            heartbeatIntervalMinutes = (rawConfig.runtime?.heartbeatIntervalMinutes ?: 15).coerceAtLeast(15),
         )
         val toolbar = RetentionToolbarSection(
             enabled = rawConfig.toolbar?.enabled ?: true,
@@ -138,6 +143,7 @@ internal object RetentionConfigLoader {
         )
         val runtimeConfig = RetentionRuntimeConfig(
             notification = notification,
+            runtime = runtime,
             policy = policy,
             toolbar = toolbar,
             reminders = reminders,

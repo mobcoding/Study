@@ -11,13 +11,20 @@ internal enum class RetentionTriggerType(val policyKey: String, val extraValue: 
     APP_BACKGROUND("app_background", "app_background"),
     SCREEN_OFF("screen_off", "screen_off"),
     PACKAGE_REPLACED("package_replaced", "package_replaced"),
+    CHARGING("charging", "charging"),
 }
 
 internal data class RetentionRuntimeConfig(
     val notification: RetentionNotificationSection,
+    val runtime: RetentionRuntimeSection,
     val policy: RetentionPolicySection,
     val toolbar: RetentionToolbarSection,
     val reminders: RetentionReminderSection,
+)
+
+internal data class RetentionRuntimeSection(
+    val workManagerEnabled: Boolean,
+    val heartbeatIntervalMinutes: Int,
 )
 
 internal data class RetentionNotificationSection(
@@ -45,6 +52,7 @@ internal data class RetentionPolicySection(
     val appBackground: TriggerPolicy,
     val screenOff: TriggerPolicy,
     val packageReplaced: TriggerPolicy,
+    val charging: TriggerPolicy,
 )
 
 internal data class GlobalCooldownPolicy(
@@ -109,9 +117,15 @@ internal data class LaunchTarget(
 internal data class RawRetentionConfig(
     val version: Int = 1,
     val notification: RawNotificationSection? = null,
+    val runtime: RawRuntimeSection? = null,
     val policy: RawPolicySection? = null,
     val toolbar: RawToolbarSection? = null,
     val reminders: RawReminderSection? = null,
+)
+
+internal data class RawRuntimeSection(
+    val workManagerEnabled: Boolean? = null,
+    val heartbeatIntervalMinutes: Int? = null,
 )
 
 internal data class RawNotificationSection(
@@ -140,6 +154,7 @@ internal data class RawPolicySection(
     val appBackground: RawTriggerPolicy? = null,
     val screenOff: RawTriggerPolicy? = null,
     val packageReplaced: RawTriggerPolicy? = null,
+    val charging: RawTriggerPolicy? = null,
 )
 
 internal data class RawQuietHours(

@@ -10,9 +10,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationManagerCompat
-import androidx.core.content.ContextCompat
 import com.study.retention.receiver.RetentionAlarmReceiver
-import com.study.retention.service.RetentionToolbarService
 import java.util.Calendar
 
 internal class RetentionScheduler(
@@ -24,32 +22,23 @@ internal class RetentionScheduler(
     private val notifier = RetentionNotifier(application, config)
 
     fun refreshToolbar(context: Context = application) {
-        val safeContext = context.applicationContext
         val hasPermission = hasNotificationPermission()
         Log.d(
             RetentionLog.TAG,
             "Refreshing toolbar. enabled=${config.toolbar.enabled}, itemCount=${config.toolbar.items.size}, hasPermission=$hasPermission",
         )
         if (!config.toolbar.enabled || config.toolbar.items.isEmpty() || !hasPermission) {
-            Log.d(RetentionLog.TAG, "Skip toolbar notification. enabled=${config.toolbar.enabled}, itemCount=${config.toolbar.items.size}, hasPermission=$hasPermission")
+            Log.d(
+                RetentionLog.TAG,
+                "Skip toolbar notification. enabled=${config.toolbar.enabled}, itemCount=${config.toolbar.items.size}, hasPermission=$hasPermission",
+            )
             notifier.cancelToolbarNotification()
-            safeContext.stopService(Intent(safeContext, RetentionToolbarService::class.java))
             return
         }
         val items = config.toolbar.items.take(MAX_TOOLBAR_ITEMS)
-        if (!shouldUseToolbarForegroundService() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && context is Application) {
-            runCatching { notifier.showToolbarNotification(items) }
-                .onSuccess { Log.d(RetentionLog.TAG, "Toolbar notification shown directly. itemCount=${items.size}") }
-                .onFailure { Log.w(RetentionLog.TAG, "Failed to show toolbar notification", it) }
-            safeContext.stopService(Intent(safeContext, RetentionToolbarService::class.java))
-            return
-        }
-        val serviceIntent = Intent(safeContext, RetentionToolbarService::class.java)
-        ContextCompat.startForegroundService(safeContext, serviceIntent)
-        Log.d(
-            RetentionLog.TAG,
-            "Toolbar foreground service started. timerEnabled=${config.policy.timer.enabled} sdk=${Build.VERSION.SDK_INT}",
-        )
+        runCatching { notifier.showToolbarNotification(items) }
+            .onSuccess { Log.d(RetentionLog.TAG, "Toolbar notification shown directly. itemCount=${items.size}") }
+            .onFailure { Log.w(RetentionLog.TAG, "Failed to show toolbar notification", it) }
     }
 
     fun handleTrigger(trigger: RetentionTriggerType) {
@@ -79,7 +68,10 @@ internal class RetentionScheduler(
         runCatching {
             notifier.showReminderNotification(item, trigger)
             store.recordShown(trigger)
-            Log.d(RetentionLog.TAG, "Reminder notification shown. trigger=${trigger.extraValue}, itemId=${item.id}, bucketId=${item.bucketId}")
+            Log.d(
+                RetentionLog.TAG,
+                "Reminder notification shown. trigger=${trigger.extraValue}, itemId=${item.id}, bucketId=${item.bucketId}",
+            )
         }.onFailure {
             Log.w(RetentionLog.TAG, "Failed to show reminder for ${trigger.extraValue}", it)
         }
@@ -88,7 +80,10 @@ internal class RetentionScheduler(
     fun scheduleNextAlarm(force: Boolean = false) {
         val policy = config.policy.alarm
         if (!policy.enabled || policy.intervalMinutes <= 0) {
-            Log.d(RetentionLog.TAG, "Skip alarm scheduling. enabled=${policy.enabled}, intervalMinutes=${policy.intervalMinutes}")
+            Log.d(
+                RetentionLog.TAG,
+                "Skip alarm scheduling. enabled=${policy.enabled}, intervalMinutes=${policy.intervalMinutes}",
+            )
             return
         }
         val now = System.currentTimeMillis()
@@ -113,11 +108,6 @@ internal class RetentionScheduler(
             RetentionLog.TAG,
             "Alarm scheduled. force=$force triggerAt=$triggerAt intervalMinutes=${policy.intervalMinutes} exact=${canScheduleExactAlarm(alarmManager)}",
         )
-    }
-
-    fun buildToolbarNotification(): android.app.Notification {
-        Log.d(RetentionLog.TAG, "Building toolbar notification for foreground service.")
-        return notifier.showToolbarNotification(config.toolbar.items.take(MAX_TOOLBAR_ITEMS))
     }
 
     private fun canShow(trigger: RetentionTriggerType, policy: TriggerPolicy): Boolean {
@@ -169,7 +159,10 @@ internal class RetentionScheduler(
         val bucketOrder = config.reminders.bucketOrder
         if (bucketOrder.isEmpty()) {
             val item = allItems[store.nextNaturalReminderIndex(allItems.size)]
-            Log.d(RetentionLog.TAG, "Selected reminder by natural order. itemId=${item.id}, bucketId=${item.bucketId}")
+            Log.d(
+                RetentionLog.TAG,
+                "Selected reminder by natural order. itemId=${item.id}, bucketId=${item.bucketId}",
+            )
             return item
         }
         val startIndex = store.advanceBucketCursor(bucketOrder.size)
@@ -185,7 +178,10 @@ internal class RetentionScheduler(
             store.setBucketCursor(index)
             val rotationIndex = store.nextBucketRotationIndex(bucketId, bucketItems.size)
             val item = bucketItems[rotationIndex]
-            Log.d(RetentionLog.TAG, "Selected reminder item. bucketId=$bucketId rotationIndex=$rotationIndex itemId=${item.id}")
+            Log.d(
+                RetentionLog.TAG,
+                "Selected reminder item. bucketId=$bucketId rotationIndex=$rotationIndex itemId=${item.id}",
+            )
             return item
         }
         Log.d(RetentionLog.TAG, "No reminder item matched current bucket order.")
@@ -201,6 +197,7 @@ internal class RetentionScheduler(
             RetentionTriggerType.APP_BACKGROUND -> config.policy.appBackground
             RetentionTriggerType.SCREEN_OFF -> config.policy.screenOff
             RetentionTriggerType.PACKAGE_REPLACED -> config.policy.packageReplaced
+            RetentionTriggerType.CHARGING -> config.policy.charging
         }
     }
 
@@ -222,10 +219,6 @@ internal class RetentionScheduler(
             "Quiet hours check. currentHour=$currentHour start=${quietHours.startHourInclusive} end=${quietHours.endHourExclusive} inQuietHours=$inQuietHours",
         )
         return inQuietHours
-    }
-
-    private fun shouldUseToolbarForegroundService(): Boolean {
-        return config.policy.timer.enabled || config.policy.unlock.enabled
     }
 
     private fun scheduleAlarm(
