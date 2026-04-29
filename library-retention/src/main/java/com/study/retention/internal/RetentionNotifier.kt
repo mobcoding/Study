@@ -1,5 +1,6 @@
 package com.study.retention.internal
 
+import android.Manifest
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -10,6 +11,7 @@ import android.os.Build
 import android.util.Log
 import android.view.View
 import android.widget.RemoteViews
+import androidx.annotation.RequiresPermission
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import kotlin.random.Random
@@ -37,7 +39,7 @@ internal class RetentionNotifier(
         )
     }
 
-    fun showToolbarNotification(items: List<ToolbarItemConfig>): Notification {
+    @RequiresPermission(Manifest.permission.POST_NOTIFICATIONS) fun showToolbarNotification(items: List<ToolbarItemConfig>): Notification {
         ensureToolbarChannel()
         val notification = buildToolbarNotification(items)
         NotificationManagerCompat.from(context).notify(config.notification.toolbarNotificationId, notification)
@@ -55,7 +57,7 @@ internal class RetentionNotifier(
         Log.d(RetentionLog.TAG, "Toolbar notification cancelled.")
     }
 
-    fun showReminderNotification(item: ReminderItemConfig, trigger: RetentionTriggerType) {
+    @RequiresPermission(Manifest.permission.POST_NOTIFICATIONS) fun showReminderNotification(item: ReminderItemConfig, trigger: RetentionTriggerType) {
         ensureReminderChannel()
         val notification = buildReminderNotification(item, trigger)
         NotificationManagerCompat.from(context).notify(
@@ -157,7 +159,6 @@ internal class RetentionNotifier(
         )
         if (clickIntent != null) {
             builder.setContentIntent(clickIntent)
-            builder.addAction(config.notification.smallIconResId, actionLabel, clickIntent)
         }
         return builder.build()
     }

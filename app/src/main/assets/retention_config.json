@@ -29,18 +29,18 @@
       "dailyLimit": 30
     },
     "unlock": {
-      "enabled": true,
+      "enabled": false,
       "intervalMinutes": 1,
       "dailyLimit": 40
     },
     "screenOff": {
-      "enabled": true,
+      "enabled": false,
       "intervalMinutes": 1,
       "dailyLimit": 10
     },
     "alarm": {
-      "enabled": false,
-      "intervalMinutes": 180,
+      "enabled": true,
+      "intervalMinutes": 1,
       "dailyLimit": 30
     },
     "boot": {

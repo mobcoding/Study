@@ -246,14 +246,25 @@ internal class RetentionScheduler(
         when {
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && canScheduleExactAlarm(alarmManager) -> {
                 alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent)
+                Log.d(RetentionLog.TAG, "Scheduled exact alarm with allow-while-idle. triggerAt=$triggerAt")
+            }
+
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.M -> {
+                alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent)
+                Log.w(
+                    RetentionLog.TAG,
+                    "Exact alarm permission unavailable. Fallback to inexact allow-while-idle alarm. triggerAt=$triggerAt",
+                )
             }
 
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT -> {
                 alarmManager.setExact(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent)
+                Log.d(RetentionLog.TAG, "Scheduled exact alarm on pre-M device. triggerAt=$triggerAt")
             }
 
             else -> {
                 alarmManager.set(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent)
+                Log.d(RetentionLog.TAG, "Scheduled basic alarm on legacy device. triggerAt=$triggerAt")
             }
         }
     }
