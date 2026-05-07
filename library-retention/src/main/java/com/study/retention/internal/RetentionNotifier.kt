@@ -21,6 +21,10 @@ internal class RetentionNotifier(
     private val config: RetentionRuntimeConfig,
 ) {
 
+    private enum class ReminderLayoutVariant {
+        COLLAPSED, EXPANDED,
+    }
+
     fun ensureReminderChannel() {
         ensureChannel(
             config.notification.reminderChannelId,
@@ -39,10 +43,13 @@ internal class RetentionNotifier(
         )
     }
 
-    @RequiresPermission(Manifest.permission.POST_NOTIFICATIONS) fun showToolbarNotification(items: List<ToolbarItemConfig>): Notification {
+    @RequiresPermission(Manifest.permission.POST_NOTIFICATIONS)
+    fun showToolbarNotification(items: List<ToolbarItemConfig>): Notification {
         ensureToolbarChannel()
         val notification = buildToolbarNotification(items)
-        NotificationManagerCompat.from(context).notify(config.notification.toolbarNotificationId, notification)
+        NotificationManagerCompat.from(context)
+            .notify(config.notification.toolbarNotificationId, notification)
+        RetentionAnalytics.logNotificationSent(context, "toolbar_notification")
         Log.d(RetentionLog.TAG, "Toolbar notification posted. itemCount=${items.size}")
         return notification
     }
@@ -57,12 +64,14 @@ internal class RetentionNotifier(
         Log.d(RetentionLog.TAG, "Toolbar notification cancelled.")
     }
 
-    @RequiresPermission(Manifest.permission.POST_NOTIFICATIONS) fun showReminderNotification(item: ReminderItemConfig, trigger: RetentionTriggerType) {
+    @RequiresPermission(Manifest.permission.POST_NOTIFICATIONS)
+    fun showReminderNotification(item: ReminderItemConfig, trigger: RetentionTriggerType) {
         ensureReminderChannel()
         val notification = buildReminderNotification(item, trigger)
-        NotificationManagerCompat.from(context).notify(
-            config.notification.reminderNotificationBaseId + item.bucketId,
-            notification,
+        NotificationManagerCompat.from(context).notify(reminderNotificationId(item), notification)
+        RetentionAnalytics.logNotificationSent(
+            context,
+            "reminder_notification_${trigger.extraValue}",
         )
         Log.d(
             RetentionLog.TAG,
@@ -71,25 +80,34 @@ internal class RetentionNotifier(
     }
 
     private fun buildToolbarNotification(items: List<ToolbarItemConfig>): Notification {
-        val collapsedView = buildToolbarRemoteViews(
-            config.notification.toolbarCollapsedLayoutResId,
-            items,
-        )
-        val expandedView = buildToolbarRemoteViews(
+        val standardView = buildToolbarRemoteViews(
             config.notification.toolbarExpandedLayoutResId,
             items,
         )
-        return NotificationCompat.Builder(context, config.notification.toolbarChannelId)
-            .setSmallIcon(config.notification.smallIconResId)
-            .setOngoing(true)
-            .setSilent(true)
-            .setOnlyAlertOnce(true)
-            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+        val builder = NotificationCompat.Builder(context, config.notification.toolbarChannelId)
+            .setSmallIcon(config.notification.smallIconResId).setOngoing(true).setSilent(true)
+            .setOnlyAlertOnce(true).setCategory(NotificationCompat.CATEGORY_SERVICE)
             .setPriority(NotificationCompat.PRIORITY_LOW)
-            .setCustomContentView(collapsedView)
-            .setCustomBigContentView(expandedView)
-            .setStyle(NotificationCompat.DecoratedCustomViewStyle())
-            .build()
+            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            builder.setCustomContentView(
+                buildToolbarRemoteViews(
+                    config.notification.toolbarCollapsedLayoutResId,
+                    items,
+                ),
+            )
+            builder.setCustomBigContentView(standardView)
+            builder.setCustomHeadsUpContentView(standardView)
+            builder.setStyle(NotificationCompat.DecoratedCustomViewStyle())
+        } else {
+            builder.setCustomContentView(standardView)
+            builder.setCustomBigContentView(standardView)
+            builder.setCustomHeadsUpContentView(standardView)
+        }
+        createPendingIntent(config.toolbar.primaryTarget, null)?.let {
+            builder.setContentIntent(it)
+        }
+        return builder.build()
     }
 
     private fun buildToolbarRemoteViews(
@@ -97,6 +115,12 @@ internal class RetentionNotifier(
         items: List<ToolbarItemConfig>,
     ): RemoteViews {
         return RemoteViews(context.packageName, layoutResId).apply {
+            val rootId = findId("retention_toolbar_root")
+            createPendingIntent(config.toolbar.primaryTarget, null)?.let {
+                if (rootId != 0) {
+                    setOnClickPendingIntent(rootId, it)
+                }
+            }
             bindToolbarItem(1, items.getOrNull(0))
             bindToolbarItem(2, items.getOrNull(1))
             bindToolbarItem(3, items.getOrNull(2))
@@ -137,6 +161,7 @@ internal class RetentionNotifier(
         val expandedView = buildReminderRemoteViews(
             config.notification.reminderExpandedLayoutResId,
             item,
+            ReminderLayoutVariant.EXPANDED,
             message,
             actionLabel,
             clickIntent,
@@ -144,11 +169,10 @@ internal class RetentionNotifier(
         val builder = NotificationCompat.Builder(context, config.notification.reminderChannelId)
             .setSmallIcon(config.notification.smallIconResId)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setAutoCancel(true)
-            .setCategory(NotificationCompat.CATEGORY_RECOMMENDATION)
-            .setContentTitle(actionLabel)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC).setAutoCancel(true)
+            .setCategory(NotificationCompat.CATEGORY_RECOMMENDATION).setContentTitle(actionLabel)
             .setContentText(message)
+            .setGroup(reminderGroupKey(item))
         applyReminderLayouts(
             builder = builder,
             item = item,
@@ -171,59 +195,95 @@ internal class RetentionNotifier(
         clickIntent: PendingIntent?,
         expandedView: RemoteViews,
     ) {
+        val tinyView = buildReminderRemoteViews(
+            config.notification.reminderTinyLayoutResId,
+            item,
+            ReminderLayoutVariant.COLLAPSED,
+            message,
+            actionLabel,
+            clickIntent,
+        )
+        val middleView = buildReminderRemoteViews(
+            config.notification.reminderMiddleLayoutResId,
+            item,
+            ReminderLayoutVariant.COLLAPSED,
+            message,
+            actionLabel,
+            clickIntent,
+        )
+        builder.setCustomContentView(middleView)
+        builder.setCustomBigContentView(expandedView)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val tinyView = buildReminderRemoteViews(
-                config.notification.reminderTinyLayoutResId,
-                item,
-                message,
-                actionLabel,
-                clickIntent,
-            )
-            builder.setCustomContentView(tinyView)
             builder.setCustomHeadsUpContentView(tinyView)
-            builder.setCustomBigContentView(expandedView)
             builder.setStyle(NotificationCompat.DecoratedCustomViewStyle())
             return
         }
-        if (Build.MANUFACTURER.equals("Xiaomi", ignoreCase = true)) {
-            val middleView = buildReminderRemoteViews(
-                config.notification.reminderMiddleLayoutResId,
-                item,
-                message,
-                actionLabel,
-                clickIntent,
-            )
-            builder.setCustomContentView(middleView)
-            builder.setCustomHeadsUpContentView(middleView)
-            builder.setCustomBigContentView(expandedView)
-            return
-        }
-        builder.setCustomContentView(expandedView)
-        builder.setCustomHeadsUpContentView(expandedView)
-        builder.setCustomBigContentView(expandedView)
+        builder.setCustomHeadsUpContentView(middleView)
     }
 
     private fun buildReminderRemoteViews(
         layoutResId: Int,
         item: ReminderItemConfig,
+        variant: ReminderLayoutVariant,
         message: String,
         actionLabel: String,
         clickIntent: PendingIntent?,
     ): RemoteViews {
         return RemoteViews(context.packageName, layoutResId).apply {
             val rootId = findId("retention_reminder_root")
-            val imageId = findId("retention_reminder_image")
+            val iconId = findId("retention_reminder_icon")
+            val previewId = findId("retention_reminder_preview")
+            val previewContainerId = findId("retention_reminder_preview_container")
             val titleId = findId("retention_reminder_title")
             val messageId = findId("retention_reminder_message")
             val actionId = findId("retention_reminder_action")
-            if (imageId != 0) {
-                setImageViewResource(imageId, item.largeIconResId)
+            val decorativeImageResId = item.collapsedPreviewImageResId ?: item.expandedImageResId
+            val hasDecorativeImage = decorativeImageResId != null
+            if (variant == ReminderLayoutVariant.EXPANDED && iconId != 0) {
+                if (hasDecorativeImage) {
+                    setImageViewResource(iconId, decorativeImageResId)
+                    setViewVisibility(iconId, View.VISIBLE)
+                } else {
+                    setViewVisibility(iconId, View.GONE)
+                }
+            }
+            if (previewId != 0) {
+                when (variant) {
+                    ReminderLayoutVariant.COLLAPSED -> {
+                        if (hasDecorativeImage) {
+                            setImageViewResource(previewId, decorativeImageResId)
+                            setViewVisibility(previewId, View.VISIBLE)
+                        } else {
+                            setViewVisibility(previewId, View.GONE)
+                        }
+                    }
+
+                    ReminderLayoutVariant.EXPANDED -> {
+                        if (hasDecorativeImage) {
+                            if (previewContainerId != 0) {
+                                setViewVisibility(previewContainerId, View.GONE)
+                            }
+                            setViewVisibility(previewId, View.GONE)
+                        } else {
+                            setImageViewResource(previewId, item.imageResId)
+                            if (previewContainerId != 0) {
+                                setViewVisibility(previewContainerId, View.VISIBLE)
+                            }
+                            setViewVisibility(previewId, View.VISIBLE)
+                        }
+                    }
+                }
             }
             if (titleId != 0) {
                 setTextViewText(titleId, actionLabel)
             }
             if (messageId != 0) {
                 setTextViewText(messageId, message)
+                if (message.isBlank()) {
+                    setViewVisibility(messageId, View.GONE)
+                } else {
+                    setViewVisibility(messageId, View.VISIBLE)
+                }
             }
             if (actionId != 0) {
                 setTextViewText(actionId, actionLabel)
@@ -240,9 +300,10 @@ internal class RetentionNotifier(
     }
 
     private fun createPendingIntent(
-        target: LaunchTarget,
+        target: LaunchTarget?,
         trigger: RetentionTriggerType?,
     ): PendingIntent? {
+        target ?: return null
         val intent = createLaunchIntent(target, trigger) ?: return null
         return PendingIntent.getActivity(
             context,
@@ -259,13 +320,10 @@ internal class RetentionNotifier(
         val baseIntent = createExplicitIntent(target.activityClassName)
             ?: context.packageManager.getLaunchIntentForPackage(context.packageName)?.also {
                 Log.d(RetentionLog.TAG, "Falling back to launcher intent for target=${target.id}")
-            }
-            ?: return null
+            } ?: return null
         return baseIntent.apply {
             addFlags(
-                Intent.FLAG_ACTIVITY_NEW_TASK or
-                    Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                    Intent.FLAG_ACTIVITY_SINGLE_TOP,
+                Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP,
             )
             putExtra(EXTRA_RETENTION_ENTRY, target.id)
             putExtra(EXTRA_RETENTION_SOURCE, RETENTION_SOURCE)
@@ -316,6 +374,14 @@ internal class RetentionNotifier(
 
     private fun findId(name: String): Int {
         return context.resources.getIdentifier(name, "id", context.packageName)
+    }
+
+    private fun reminderNotificationId(item: ReminderItemConfig): Int {
+        return config.notification.reminderNotificationBaseId + item.bucketId
+    }
+
+    private fun reminderGroupKey(item: ReminderItemConfig): String {
+        return "retention_reminder_group_${reminderNotificationId(item)}"
     }
 
     companion object {

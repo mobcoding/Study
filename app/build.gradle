@@ -119,7 +119,6 @@ dependencies {
     implementation project(path: ':library-base')
     implementation project(path: ':library-health')
     implementation project(path: ':library-retention')
-//    implementation project(path: ':retention-kit')
 //    debugImplementation libs.leakcanary.android
     //OKHttp网络请求Android Studio插件
     implementation(libs.okhttp.profiler)

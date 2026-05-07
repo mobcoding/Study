@@ -2,10 +2,8 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:background="@drawable/retention_reminder_card_bg"
     android:gravity="center_vertical"
-    android:orientation="horizontal"
-    android:padding="10dp">
+    android:orientation="horizontal">
 
     <LinearLayout
         android:id="@+id/retention_toolbar_item_1"
@@ -15,23 +13,22 @@
         android:background="@drawable/retention_toolbar_box_green"
         android:gravity="center"
         android:orientation="vertical"
-        android:paddingHorizontal="6dp"
-        android:paddingVertical="10dp">
+        android:padding="12dp">
 
         <ImageView
             android:id="@+id/retention_toolbar_icon_1"
-            android:layout_width="20dp"
-            android:layout_height="20dp" />
+            android:layout_width="28dp"
+            android:layout_height="28dp" />
 
         <TextView
             android:id="@+id/retention_toolbar_text_1"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
+            android:layout_marginTop="1dp"
             android:ellipsize="end"
             android:gravity="center"
             android:maxLines="1"
-            android:textColor="@android:color/white"
+            android:textColor="@color/colorBlack"
             android:textSize="10sp"
             android:textStyle="bold" />
     </LinearLayout>
@@ -45,23 +42,22 @@
         android:background="@drawable/retention_toolbar_box_red"
         android:gravity="center"
         android:orientation="vertical"
-        android:paddingHorizontal="6dp"
-        android:paddingVertical="10dp">
+        android:padding="12dp">
 
         <ImageView
             android:id="@+id/retention_toolbar_icon_2"
-            android:layout_width="20dp"
-            android:layout_height="20dp" />
+            android:layout_width="28dp"
+            android:layout_height="28dp" />
 
         <TextView
             android:id="@+id/retention_toolbar_text_2"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
+            android:layout_marginTop="1dp"
             android:ellipsize="end"
             android:gravity="center"
             android:maxLines="1"
-            android:textColor="@android:color/white"
+            android:textColor="@color/colorBlack"
             android:textSize="10sp"
             android:textStyle="bold" />
     </LinearLayout>
@@ -75,23 +71,22 @@
         android:background="@drawable/retention_toolbar_box_blue"
         android:gravity="center"
         android:orientation="vertical"
-        android:paddingHorizontal="6dp"
-        android:paddingVertical="10dp">
+        android:padding="12dp">
 
         <ImageView
             android:id="@+id/retention_toolbar_icon_3"
-            android:layout_width="20dp"
-            android:layout_height="20dp" />
+            android:layout_width="28dp"
+            android:layout_height="28dp" />
 
         <TextView
             android:id="@+id/retention_toolbar_text_3"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
+            android:layout_marginTop="1dp"
             android:ellipsize="end"
             android:gravity="center"
             android:maxLines="1"
-            android:textColor="@android:color/white"
+            android:textColor="@color/colorBlack"
             android:textSize="10sp"
             android:textStyle="bold" />
     </LinearLayout>
@@ -105,23 +100,22 @@
         android:background="@drawable/retention_toolbar_box_orange"
         android:gravity="center"
         android:orientation="vertical"
-        android:paddingHorizontal="6dp"
-        android:paddingVertical="10dp">
+        android:padding="12dp">
 
         <ImageView
             android:id="@+id/retention_toolbar_icon_4"
-            android:layout_width="20dp"
-            android:layout_height="20dp" />
+            android:layout_width="28dp"
+            android:layout_height="28dp" />
 
         <TextView
             android:id="@+id/retention_toolbar_text_4"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
+            android:layout_marginTop="1dp"
             android:ellipsize="end"
             android:gravity="center"
             android:maxLines="1"
-            android:textColor="@android:color/white"
+            android:textColor="@color/colorBlack"
             android:textSize="10sp"
             android:textStyle="bold" />
     </LinearLayout>

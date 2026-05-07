@@ -2,6 +2,7 @@ package com.study.retention.internal
 
 import android.os.Bundle
 import com.google.gson.JsonObject
+import com.google.gson.annotations.SerializedName
 
 internal enum class RetentionTriggerType(val policyKey: String, val extraValue: String) {
     TIMER("timer", "timer"),
@@ -85,6 +86,7 @@ internal data class QuietHours(
 internal data class RetentionToolbarSection(
     val enabled: Boolean,
     val items: List<ToolbarItemConfig>,
+    val primaryTarget: LaunchTarget?,
 )
 
 internal data class ToolbarItemConfig(
@@ -104,7 +106,9 @@ internal data class ReminderItemConfig(
     val bucketId: Int,
     val messageResId: Int,
     val actionLabelResId: Int,
-    val largeIconResId: Int,
+    val imageResId: Int,
+    val collapsedPreviewImageResId: Int? = null,
+    val expandedImageResId: Int? = null,
     val target: LaunchTarget,
 )
 
@@ -115,88 +119,97 @@ internal data class LaunchTarget(
 )
 
 internal data class RawRetentionConfig(
-    val version: Int = 1,
-    val notification: RawNotificationSection? = null,
-    val runtime: RawRuntimeSection? = null,
-    val policy: RawPolicySection? = null,
-    val toolbar: RawToolbarSection? = null,
-    val reminders: RawReminderSection? = null,
+    @SerializedName("version") val version: Int = 1,
+    @SerializedName("notification") val notification: RawNotificationSection? = null,
+    @SerializedName("runtime") val runtime: RawRuntimeSection? = null,
+    @SerializedName("policy") val policy: RawPolicySection? = null,
+    @SerializedName("toolbar") val toolbar: RawToolbarSection? = null,
+    @SerializedName("reminders") val reminders: RawReminderSection? = null,
 )
 
 internal data class RawRuntimeSection(
-    val workManagerEnabled: Boolean? = null,
-    val heartbeatIntervalMinutes: Int? = null,
+    @SerializedName("workManagerEnabled") val workManagerEnabled: Boolean? = null,
+    @SerializedName("heartbeatIntervalMinutes") val heartbeatIntervalMinutes: Int? = null,
 )
 
 internal data class RawNotificationSection(
-    val smallIcon: String? = null,
-    val toolbarChannelId: String? = null,
-    val toolbarChannelNameRes: String? = null,
-    val reminderChannelId: String? = null,
-    val reminderChannelNameRes: String? = null,
-    val toolbarNotificationId: Int? = null,
-    val reminderNotificationBaseId: Int? = null,
-    val toolbarCollapsedLayout: String? = null,
-    val toolbarExpandedLayout: String? = null,
-    val reminderTinyLayout: String? = null,
-    val reminderMiddleLayout: String? = null,
-    val reminderExpandedLayout: String? = null,
-    val reminderCollapsedLayout: String? = null,
+    @SerializedName("smallIcon") val smallIcon: String? = null,
+    @SerializedName("toolbarChannelId") val toolbarChannelId: String? = null,
+    @SerializedName("toolbarChannelNameRes") val toolbarChannelNameRes: String? = null,
+    @SerializedName("reminderChannelId") val reminderChannelId: String? = null,
+    @SerializedName("reminderChannelNameRes") val reminderChannelNameRes: String? = null,
+    @SerializedName("toolbarNotificationId") val toolbarNotificationId: Int? = null,
+    @SerializedName("reminderNotificationBaseId") val reminderNotificationBaseId: Int? = null,
+    @SerializedName("toolbarCollapsedLayout") val toolbarCollapsedLayout: String? = null,
+    @SerializedName("toolbarExpandedLayout") val toolbarExpandedLayout: String? = null,
+    @SerializedName("reminderTinyLayout") val reminderTinyLayout: String? = null,
+    @SerializedName("reminderMiddleLayout") val reminderMiddleLayout: String? = null,
+    @SerializedName("reminderExpandedLayout") val reminderExpandedLayout: String? = null,
+    @SerializedName("reminderCollapsedLayout") val reminderCollapsedLayout: String? = null,
 )
 
 internal data class RawPolicySection(
-    val quietHours: RawQuietHours? = null,
-    val globalCooldown: RawGlobalCooldownPolicy? = null,
-    val timer: RawTriggerPolicy? = null,
-    val unlock: RawTriggerPolicy? = null,
-    val alarm: RawTriggerPolicy? = null,
-    val boot: RawTriggerPolicy? = null,
-    val appBackground: RawTriggerPolicy? = null,
-    val screenOff: RawTriggerPolicy? = null,
-    val packageReplaced: RawTriggerPolicy? = null,
-    val charging: RawTriggerPolicy? = null,
+    @SerializedName("quietHours") val quietHours: RawQuietHours? = null,
+    @SerializedName("globalCooldown") val globalCooldown: RawGlobalCooldownPolicy? = null,
+    @SerializedName("timer") val timer: RawTriggerPolicy? = null,
+    @SerializedName("unlock") val unlock: RawTriggerPolicy? = null,
+    @SerializedName("alarm") val alarm: RawTriggerPolicy? = null,
+    @SerializedName("boot") val boot: RawTriggerPolicy? = null,
+    @SerializedName("appBackground") val appBackground: RawTriggerPolicy? = null,
+    @SerializedName("screenOff") val screenOff: RawTriggerPolicy? = null,
+    @SerializedName("packageReplaced") val packageReplaced: RawTriggerPolicy? = null,
+    @SerializedName("charging") val charging: RawTriggerPolicy? = null,
 )
 
 internal data class RawQuietHours(
-    val startHourInclusive: Int? = null,
-    val endHourExclusive: Int? = null,
+    @SerializedName("startHourInclusive") val startHourInclusive: Int? = null,
+    @SerializedName("endHourExclusive") val endHourExclusive: Int? = null,
 )
 
 internal data class RawTriggerPolicy(
-    val enabled: Boolean? = null,
-    val intervalMinutes: Int? = null,
-    val dailyLimit: Int? = null,
+    @SerializedName("enabled") val enabled: Boolean? = null,
+    @SerializedName("intervalMinutes") val intervalMinutes: Int? = null,
+    @SerializedName("dailyLimit") val dailyLimit: Int? = null,
 )
 
 internal data class RawGlobalCooldownPolicy(
-    val enabled: Boolean? = null,
-    val intervalMinutes: Int? = null,
+    @SerializedName("enabled") val enabled: Boolean? = null,
+    @SerializedName("intervalMinutes") val intervalMinutes: Int? = null,
 )
 
 internal data class RawToolbarSection(
-    val enabled: Boolean? = null,
-    val items: List<RawToolbarItem>? = null,
+    @SerializedName("enabled") val enabled: Boolean? = null,
+    @SerializedName("items") val items: List<RawToolbarItem>? = null,
+    @SerializedName("primaryTarget") val primaryTarget: RawLaunchTarget? = null,
+)
+
+internal data class RawLaunchTarget(
+    @SerializedName("id") val id: String? = null,
+    @SerializedName("activityClass") val activityClass: String? = null,
+    @SerializedName("extras") val extras: JsonObject? = null,
 )
 
 internal data class RawToolbarItem(
-    val id: String? = null,
-    val titleRes: String? = null,
-    val icon: String? = null,
-    val activityClass: String? = null,
-    val extras: JsonObject? = null,
+    @SerializedName("id") val id: String? = null,
+    @SerializedName("titleRes") val titleRes: String? = null,
+    @SerializedName("icon") val icon: String? = null,
+    @SerializedName("activityClass") val activityClass: String? = null,
+    @SerializedName("extras") val extras: JsonObject? = null,
 )
 
 internal data class RawReminderSection(
-    val bucketOrder: List<Int>? = null,
-    val items: List<RawReminderItem>? = null,
+    @SerializedName("bucketOrder") val bucketOrder: List<Int>? = null,
+    @SerializedName("items") val items: List<RawReminderItem>? = null,
 )
 
 internal data class RawReminderItem(
-    val id: String? = null,
-    val bucketId: Int? = null,
-    val messageRes: String? = null,
-    val actionLabelRes: String? = null,
-    val largeIcon: String? = null,
-    val activityClass: String? = null,
-    val extras: JsonObject? = null,
+    @SerializedName("id") val id: String? = null,
+    @SerializedName("bucketId") val bucketId: Int? = null,
+    @SerializedName("messageRes") val messageRes: String? = null,
+    @SerializedName("actionLabelRes") val actionLabelRes: String? = null,
+    @SerializedName("largeIcon") val largeIcon: String? = null,
+    @SerializedName("smallImage") val smallImage: String? = null,
+    @SerializedName("expandedImage") val expandedImage: String? = null,
+    @SerializedName("activityClass") val activityClass: String? = null,
+    @SerializedName("extras") val extras: JsonObject? = null,
 )

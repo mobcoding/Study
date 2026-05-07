@@ -32,5 +32,5 @@ include ':library-base'
 include ':library-guide'
 include ':library-net'
 include ':library-health'
-include ':retention-kit'
+
 include ':library-retention'

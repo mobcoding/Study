@@ -9,10 +9,11 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Log
+import androidx.annotation.RequiresPermission
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
-import com.study.retention.service.RetentionToolbarForegroundService
 import com.study.retention.receiver.RetentionAlarmReceiver
+import com.study.retention.service.RetentionToolbarForegroundService
 import java.util.Calendar
 
 internal class RetentionScheduler(
@@ -23,6 +24,7 @@ internal class RetentionScheduler(
 
     private val notifier = RetentionNotifier(application, config)
 
+    @RequiresPermission(Manifest.permission.POST_NOTIFICATIONS)
     fun refreshToolbar(context: Context = application) {
         val hasPermission = hasNotificationPermission()
         Log.d(
@@ -45,40 +47,60 @@ internal class RetentionScheduler(
                 Intent(context.applicationContext, RetentionToolbarForegroundService::class.java),
             )
         }.onSuccess {
-            Log.d(RetentionLog.TAG, "Requested toolbar foreground service start. itemCount=${items.size}")
+            Log.d(
+                RetentionLog.TAG,
+                "Requested toolbar foreground service start. itemCount=${items.size}"
+            )
         }.onFailure {
             Log.w(
                 RetentionLog.TAG,
                 "Failed to start toolbar foreground service. Falling back to direct toolbar notification.",
                 it,
             )
-            runCatching { notifier.showToolbarNotification(items) }
-                .onSuccess { Log.d(RetentionLog.TAG, "Toolbar notification shown directly after FGS fallback. itemCount=${items.size}") }
-                .onFailure { Log.w(RetentionLog.TAG, "Failed to show toolbar notification", it) }
+            runCatching { notifier.showToolbarNotification(items) }.onSuccess {
+                Log.d(
+                    RetentionLog.TAG,
+                    "Toolbar notification shown directly after FGS fallback. itemCount=${items.size}"
+                )
+            }.onFailure { Log.w(RetentionLog.TAG, "Failed to show toolbar notification", it) }
         }
     }
 
+    @RequiresPermission(Manifest.permission.POST_NOTIFICATIONS)
     fun handleTrigger(trigger: RetentionTriggerType) {
         val hasPermission = hasNotificationPermission()
         if (!hasPermission) {
-            Log.d(RetentionLog.TAG, "Skip ${trigger.extraValue} trigger because notification permission is missing.")
+            Log.d(
+                RetentionLog.TAG,
+                "Skip ${trigger.extraValue} trigger because notification permission is missing."
+            )
             return
         }
         if (RetentionAppVisibilityTracker.isAppForeground()) {
-            Log.d(RetentionLog.TAG, "Skip ${trigger.extraValue} trigger because app is in foreground.")
+            Log.d(
+                RetentionLog.TAG, "Skip ${trigger.extraValue} trigger because app is in foreground."
+            )
             return
         }
         if (isQuietHours()) {
-            Log.d(RetentionLog.TAG, "Skip ${trigger.extraValue} trigger because current time is within quiet hours.")
+            Log.d(
+                RetentionLog.TAG,
+                "Skip ${trigger.extraValue} trigger because current time is within quiet hours."
+            )
             return
         }
         if (!canPassGlobalCooldown()) {
-            Log.d(RetentionLog.TAG, "Skip ${trigger.extraValue} trigger because global cooldown is active.")
+            Log.d(
+                RetentionLog.TAG,
+                "Skip ${trigger.extraValue} trigger because global cooldown is active."
+            )
             return
         }
         val policy = policyFor(trigger)
         if (!canShow(trigger, policy)) {
-            Log.d(RetentionLog.TAG, "Skip ${trigger.extraValue} trigger because policy check failed.")
+            Log.d(
+                RetentionLog.TAG, "Skip ${trigger.extraValue} trigger because policy check failed."
+            )
             return
         }
         val item = nextReminderItem() ?: return
@@ -123,7 +145,11 @@ internal class RetentionScheduler(
         store.setNextScheduledAlarmAt(triggerAt)
         Log.d(
             RetentionLog.TAG,
-            "Alarm scheduled. force=$force triggerAt=$triggerAt intervalMinutes=${policy.intervalMinutes} exact=${canScheduleExactAlarm(alarmManager)}",
+            "Alarm scheduled. force=$force triggerAt=$triggerAt intervalMinutes=${policy.intervalMinutes} exact=${
+                canScheduleExactAlarm(
+                    alarmManager
+                )
+            }",
         )
     }
 
@@ -135,10 +161,8 @@ internal class RetentionScheduler(
         val lastShownAt = store.getLastShownAt(trigger)
         val todayCount = store.getTodayCount(trigger)
         val intervalSatisfied =
-            policy.intervalMinutes <= 0 ||
-                System.currentTimeMillis() - lastShownAt >=
-                policy.intervalMinutes * MILLIS_PER_MINUTE
-        val countSatisfied = policy.dailyLimit <= 0 || todayCount < policy.dailyLimit
+            policy.intervalMinutes <= 0 || System.currentTimeMillis() - lastShownAt >= policy.intervalMinutes * MILLIS_PER_MINUTE
+        val countSatisfied = policy.dailyLimit !in 1..todayCount
         Log.d(
             RetentionLog.TAG,
             "Policy check. trigger=${trigger.extraValue}, lastShownAt=$lastShownAt, todayCount=$todayCount, intervalMinutes=${policy.intervalMinutes}, dailyLimit=${policy.dailyLimit}, intervalSatisfied=$intervalSatisfied, countSatisfied=$countSatisfied",
@@ -157,9 +181,7 @@ internal class RetentionScheduler(
         }
         val lastShownAt = store.getGlobalLastShownAt()
         val satisfied =
-            lastShownAt <= 0L ||
-                System.currentTimeMillis() - lastShownAt >=
-                policy.intervalMinutes * MILLIS_PER_MINUTE
+            lastShownAt <= 0L || System.currentTimeMillis() - lastShownAt >= policy.intervalMinutes * MILLIS_PER_MINUTE
         Log.d(
             RetentionLog.TAG,
             "Global cooldown check. lastShownAt=$lastShownAt intervalMinutes=${policy.intervalMinutes} satisfied=$satisfied",
@@ -183,7 +205,10 @@ internal class RetentionScheduler(
             return item
         }
         val startIndex = store.advanceBucketCursor(bucketOrder.size)
-        Log.d(RetentionLog.TAG, "Selecting reminder by bucketOrder=$bucketOrder startIndex=$startIndex")
+        Log.d(
+            RetentionLog.TAG,
+            "Selecting reminder by bucketOrder=$bucketOrder startIndex=$startIndex"
+        )
         for (offset in bucketOrder.indices) {
             val index = (startIndex + offset) % bucketOrder.size
             val bucketId = bucketOrder[index]
@@ -222,8 +247,7 @@ internal class RetentionScheduler(
         return if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
             NotificationManagerCompat.from(application).areNotificationsEnabled()
         } else {
-            application.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
-                PackageManager.PERMISSION_GRANTED
+            application.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
         }
     }
 
@@ -245,8 +269,13 @@ internal class RetentionScheduler(
     ) {
         when {
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && canScheduleExactAlarm(alarmManager) -> {
-                alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent)
-                Log.d(RetentionLog.TAG, "Scheduled exact alarm with allow-while-idle. triggerAt=$triggerAt")
+                alarmManager.setExactAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent
+                )
+                Log.d(
+                    RetentionLog.TAG,
+                    "Scheduled exact alarm with allow-while-idle. triggerAt=$triggerAt"
+                )
             }
 
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.M -> {
@@ -259,12 +288,16 @@ internal class RetentionScheduler(
 
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT -> {
                 alarmManager.setExact(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent)
-                Log.d(RetentionLog.TAG, "Scheduled exact alarm on pre-M device. triggerAt=$triggerAt")
+                Log.d(
+                    RetentionLog.TAG, "Scheduled exact alarm on pre-M device. triggerAt=$triggerAt"
+                )
             }
 
             else -> {
                 alarmManager.set(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent)
-                Log.d(RetentionLog.TAG, "Scheduled basic alarm on legacy device. triggerAt=$triggerAt")
+                Log.d(
+                    RetentionLog.TAG, "Scheduled basic alarm on legacy device. triggerAt=$triggerAt"
+                )
             }
         }
     }
@@ -279,7 +312,11 @@ internal class RetentionScheduler(
 
     private fun stopToolbarService() {
         runCatching {
-            application.stopService(Intent(application, RetentionToolbarForegroundService::class.java))
+            application.stopService(
+                Intent(
+                    application, RetentionToolbarForegroundService::class.java
+                )
+            )
         }.onFailure {
             Log.w(RetentionLog.TAG, "Failed to stop toolbar foreground service.", it)
         }

@@ -13,7 +13,7 @@
         android:layout_width="1dp"
         android:layout_height="1dp"
         android:gravity="start"
-        android:textColor="@color/colorBlack"
+        android:textColor="@color/colorWhite"
         android:visibility="gone" />
 
     <FrameLayout
@@ -40,7 +40,7 @@
         android:ellipsize="end"
         android:gravity="start"
         android:maxLines="2"
-        android:textColor="@color/colorBlack"
+        android:textColor="@color/colorWhite"
         android:textSize="14sp"
         android:textStyle="bold" />
 

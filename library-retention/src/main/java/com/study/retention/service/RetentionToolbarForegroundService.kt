@@ -4,6 +4,7 @@ import android.app.Service
 import android.content.Intent
 import android.os.IBinder
 import android.util.Log
+import com.study.retention.internal.RetentionAnalytics
 import com.study.retention.internal.RetentionEngine
 import com.study.retention.internal.RetentionLog
 import com.study.retention.internal.RetentionNotifier
@@ -41,6 +42,10 @@ internal class RetentionToolbarForegroundService : Service() {
             .buildToolbarForegroundNotification(items)
         try {
             startForeground(config.notification.toolbarNotificationId, notification)
+            RetentionAnalytics.logNotificationSent(
+                applicationContext,
+                "toolbar_foreground_notification",
+            )
             Log.d(RetentionLog.TAG, "Toolbar foreground service started. itemCount=${items.size}")
         } catch (throwable: Throwable) {
             Log.w(RetentionLog.TAG, "Failed to enter foreground for toolbar service.", throwable)

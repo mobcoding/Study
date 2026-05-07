@@ -5,16 +5,19 @@ plugins {
 
 android {
     namespace 'com.study.retention'
-    compileSdk rootProject.ext.compileSdk
+    compileSdk 36
 
     defaultConfig {
-        minSdk rootProject.ext.minSdk
-        targetSdk rootProject.ext.targetSdk
+        minSdk 24
+        targetSdk 36
         consumerProguardFiles 'consumer-rules.pro'
     }
-
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
+    }
     kotlinOptions {
-        jvmTarget = '1.8'
+        jvmTarget = '21'
     }
 }
 
@@ -22,6 +25,8 @@ dependencies {
     implementation libs.androidx.startup.runtime
     implementation libs.androidx.work.runtime.ktx
     implementation libs.androidx.core.ktx
+    implementation platform(libs.firebase.bom)
+    implementation "com.google.firebase:firebase-analytics"
     implementation libs.gson
     implementation libs.mmkv
 }

@@ -24,27 +24,27 @@
       "intervalMinutes": 30
     },
     "timer": {
-      "enabled": false,
-      "intervalMinutes": 60,
+      "enabled": true,
+      "intervalMinutes": 20,
       "dailyLimit": 30
     },
     "unlock": {
-      "enabled": false,
+      "enabled": true,
       "intervalMinutes": 1,
       "dailyLimit": 40
     },
     "screenOff": {
-      "enabled": false,
+      "enabled": true,
       "intervalMinutes": 1,
       "dailyLimit": 10
     },
     "alarm": {
       "enabled": true,
-      "intervalMinutes": 1,
-      "dailyLimit": 30
+      "intervalMinutes": 5,
+      "dailyLimit": 40
     },
     "boot": {
-      "enabled": false,
+      "enabled": true,
       "intervalMinutes": 0,
       "dailyLimit": 10
     },
@@ -59,17 +59,25 @@
       "dailyLimit": 10
     },
     "charging": {
-      "enabled": false,
-      "intervalMinutes": 1,
+      "enabled": true,
+      "intervalMinutes": 120,
       "dailyLimit": 10
     }
   },
   "runtime": {
     "workManagerEnabled": true,
-    "heartbeatIntervalMinutes": 10
+    "heartbeatIntervalMinutes": 120
   },
   "toolbar": {
     "enabled": true,
+    "primaryTarget": {
+      "id": "toolbar_launch",
+      "activityClass": "com.zero.study.ui.activity.MainActivity",
+      "extras": {
+        "target": "primary",
+        "jumpTo": 0
+      }
+    },
     "items": [
       {
         "id": "toolbar_primary",

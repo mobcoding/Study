@@ -1,5 +1,7 @@
 package com.study.retention.internal
 
+import android.Manifest
+import android.annotation.SuppressLint
 import android.app.Application
 import android.app.KeyguardManager
 import android.content.BroadcastReceiver
@@ -9,18 +11,24 @@ import android.content.IntentFilter
 import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
+import android.os.SystemClock
 import android.util.Log
+import androidx.annotation.RequiresPermission
 
 internal object RetentionEngine {
 
     private const val APP_BACKGROUND_DELAY_MS = 1_000L
     private const val TIMER_INITIAL_DELAY_MS = 20_000L
     private const val UNLOCK_DELAY_MS = 1_000L
+    private const val UNLOCK_MONITOR_START_DELAY_MS = 1_000L
+    private const val UNLOCK_MONITOR_INTERVAL_MS = 500L
+    private const val UNLOCK_MONITOR_TIMEOUT_MS = 15_000L
+    private const val UNLOCK_MONITOR_STABLE_UNLOCK_COUNT = 2
+    private const val UNLOCK_DUPLICATE_SUPPRESSION_MS = 2_000L
     private const val MILLIS_PER_MINUTE = 60_000L
 
     private enum class RetentionRuntimeMode {
-        BASIC,
-        FOREGROUND,
+        BASIC, FOREGROUND,
     }
 
     @Volatile
@@ -35,7 +43,12 @@ internal object RetentionEngine {
     private var backgroundHandler: Handler? = null
     private val foregroundSessions = linkedSetOf<String>()
     private var runtimeMode = RetentionRuntimeMode.BASIC
+    private var unlockMonitorSource: String? = null
+    private var unlockMonitorDeadlineAt = 0L
+    private var unlockMonitorUnlockedCount = 0
+    private var lastUnlockDispatchAt = 0L
     private val timerRunnable = object : Runnable {
+        @RequiresPermission(Manifest.permission.POST_NOTIFICATIONS)
         override fun run() {
             if (runtimeMode != RetentionRuntimeMode.FOREGROUND) {
                 Log.d(RetentionLog.TAG, "Stop timer loop because runtime mode is basic.")
@@ -47,7 +60,10 @@ internal object RetentionEngine {
             }
             val intervalMs = configuredTimerIntervalMs()
             if (intervalMs <= 0L) {
-                Log.d(RetentionLog.TAG, "Stop timer loop because configured timer interval is invalid.")
+                Log.d(
+                    RetentionLog.TAG,
+                    "Stop timer loop because configured timer interval is invalid."
+                )
                 return
             }
             handleTimerTick()
@@ -58,8 +74,41 @@ internal object RetentionEngine {
             )
         }
     }
+    private val unlockMonitorRunnable = object : Runnable {
+        override fun run() {
+            val source = unlockMonitorSource ?: return
+            if (!isKeyguardLocked()) {
+                unlockMonitorUnlockedCount += 1
+                Log.d(
+                    RetentionLog.TAG,
+                    "Unlock monitor detected keyguard dismissed. source=$source stableCount=$unlockMonitorUnlockedCount",
+                )
+                if (unlockMonitorUnlockedCount >= UNLOCK_MONITOR_STABLE_UNLOCK_COUNT) {
+                    stopUnlockMonitor("detected_unlocked")
+                    dispatchUnlockTrigger("${source}_monitor")
+                    return
+                }
+            } else if (unlockMonitorUnlockedCount != 0) {
+                Log.d(
+                    RetentionLog.TAG,
+                    "Unlock monitor reset stable count because keyguard is visible again. source=$source",
+                )
+                unlockMonitorUnlockedCount = 0
+            }
+            if (SystemClock.elapsedRealtime() >= unlockMonitorDeadlineAt) {
+                Log.d(
+                    RetentionLog.TAG,
+                    "Stop unlock monitor because timeout reached. source=$source timeoutMs=$UNLOCK_MONITOR_TIMEOUT_MS",
+                )
+                stopUnlockMonitor("timeout")
+                return
+            }
+            backgroundHandler?.postDelayed(this, UNLOCK_MONITOR_INTERVAL_MS)
+        }
+    }
 
     private val runtimeReceiver = object : BroadcastReceiver() {
+        @RequiresPermission(Manifest.permission.POST_NOTIFICATIONS)
         override fun onReceive(context: Context?, intent: Intent?) {
             val safeContext = context ?: return
             handleRuntimeRecovery(safeContext, intent?.action)
@@ -69,7 +118,9 @@ internal object RetentionEngine {
     @Synchronized
     fun initialize(context: Context): Boolean {
         if (initialized) {
-            Log.d(RetentionLog.TAG, "Retention engine already initialized. enabled=${config != null}")
+            Log.d(
+                RetentionLog.TAG, "Retention engine already initialized. enabled=${config != null}"
+            )
             return config != null
         }
         val app = context.applicationContext as? Application ?: return false
@@ -106,6 +157,7 @@ internal object RetentionEngine {
         }
     }
 
+    @androidx.annotation.RequiresPermission(Manifest.permission.POST_NOTIFICATIONS)
     fun handleAlarm(context: Context) {
         if (!ensureInitialized(context)) {
             Log.w(RetentionLog.TAG, "Skip alarm handling because retention engine is disabled.")
@@ -116,6 +168,7 @@ internal object RetentionEngine {
         scheduler?.scheduleNextAlarm(force = true)
     }
 
+    @androidx.annotation.RequiresPermission(Manifest.permission.POST_NOTIFICATIONS)
     fun handleBoot(context: Context) {
         if (!ensureInitialized(context)) {
             Log.w(RetentionLog.TAG, "Skip boot handling because retention engine is disabled.")
@@ -129,7 +182,9 @@ internal object RetentionEngine {
 
     fun onNotificationPermissionGranted(context: Context) {
         if (!ensureInitialized(context)) {
-            Log.w(RetentionLog.TAG, "Skip permission recovery because retention engine is disabled.")
+            Log.w(
+                RetentionLog.TAG, "Skip permission recovery because retention engine is disabled."
+            )
             return
         }
         Log.d(RetentionLog.TAG, "Notification permission granted. Recovering retention runtime.")
@@ -139,7 +194,10 @@ internal object RetentionEngine {
 
     fun enterForegroundRuntime(context: Context, sessionId: String, source: String) {
         if (!ensureInitialized(context)) {
-            Log.w(RetentionLog.TAG, "Skip entering foreground runtime because retention engine is disabled.")
+            Log.w(
+                RetentionLog.TAG,
+                "Skip entering foreground runtime because retention engine is disabled."
+            )
             return
         }
         if (sessionId.isBlank()) {
@@ -179,18 +237,23 @@ internal object RetentionEngine {
         scheduler?.refreshToolbar(application)
     }
 
+    @RequiresPermission(Manifest.permission.POST_NOTIFICATIONS)
     fun handleTimerTick() {
         Log.d(RetentionLog.TAG, "Timer trigger fired.")
         try {
             scheduler?.handleTrigger(RetentionTriggerType.TIMER)
         } catch (throwable: Throwable) {
-            Log.e(RetentionLog.TAG, "Unhandled exception while processing timer trigger.", throwable)
+            Log.e(
+                RetentionLog.TAG, "Unhandled exception while processing timer trigger.", throwable
+            )
         }
     }
 
     fun handleHeartbeatWork(context: Context) {
         if (!ensureInitialized(context)) {
-            Log.w(RetentionLog.TAG, "Skip WorkManager heartbeat because retention engine is disabled.")
+            Log.w(
+                RetentionLog.TAG, "Skip WorkManager heartbeat because retention engine is disabled."
+            )
             return
         }
         Log.d(RetentionLog.TAG, "Handling WorkManager heartbeat. mode=$runtimeMode")
@@ -198,9 +261,13 @@ internal object RetentionEngine {
         scheduler?.scheduleNextAlarm(force = false)
     }
 
+    @RequiresPermission(Manifest.permission.POST_NOTIFICATIONS)
     fun handleRuntimeRecovery(context: Context, action: String?) {
         if (!ensureInitialized(context)) {
-            Log.w(RetentionLog.TAG, "Skip runtime recovery because retention engine is disabled. action=$action")
+            Log.w(
+                RetentionLog.TAG,
+                "Skip runtime recovery because retention engine is disabled. action=$action"
+            )
             return
         }
         Log.d(RetentionLog.TAG, "Handling runtime recovery broadcast. action=$action")
@@ -213,19 +280,17 @@ internal object RetentionEngine {
 
             Intent.ACTION_USER_PRESENT -> {
                 scheduler?.refreshToolbar(application)
+                stopUnlockMonitor("user_present")
                 dispatchUnlockTrigger("user_present")
             }
 
             Intent.ACTION_SCREEN_ON -> {
                 scheduler?.refreshToolbar(application)
-                if (isDeviceLocked()) {
-                    Log.d(RetentionLog.TAG, "Skip screen_on unlock proxy because device is still locked.")
-                } else {
-                    dispatchUnlockTrigger("screen_on")
-                }
+                startUnlockMonitor("screen_on")
             }
 
             Intent.ACTION_SCREEN_OFF -> {
+                stopUnlockMonitor("screen_off")
                 scheduler?.refreshToolbar(application)
                 handleImmediateTrigger(RetentionTriggerType.SCREEN_OFF, "screen_off")
             }
@@ -242,12 +307,16 @@ internal object RetentionEngine {
         }
     }
 
+    @SuppressLint("MissingPermission")
     fun onAppBackground() {
         val handler = backgroundHandler ?: return
         handler.postDelayed(
-            {
+            @RequiresPermission(Manifest.permission.POST_NOTIFICATIONS) {
                 if (RetentionAppVisibilityTracker.isAppForeground()) {
-                    Log.d(RetentionLog.TAG, "Skip app_background trigger because app returned to foreground.")
+                    Log.d(
+                        RetentionLog.TAG,
+                        "Skip app_background trigger because app returned to foreground."
+                    )
                     return@postDelayed
                 }
                 handleImmediateTrigger(RetentionTriggerType.APP_BACKGROUND, "app_background")
@@ -257,8 +326,6 @@ internal object RetentionEngine {
     }
 
     fun currentConfigOrNull(): RetentionRuntimeConfig? = config
-
-    fun currentStoreOrNull(): RetentionStore? = if (this::store.isInitialized) store else null
 
     private fun ensureHandler() {
         if (handlerThread != null) {
@@ -326,9 +393,19 @@ internal object RetentionEngine {
         Log.d(RetentionLog.TAG, "Runtime receivers registered.")
     }
 
+    @RequiresPermission(Manifest.permission.POST_NOTIFICATIONS)
     private fun dispatchUnlockTrigger(source: String) {
         backgroundHandler?.postDelayed(
             {
+                val now = SystemClock.elapsedRealtime()
+                if (now - lastUnlockDispatchAt < UNLOCK_DUPLICATE_SUPPRESSION_MS) {
+                    Log.d(
+                        RetentionLog.TAG,
+                        "Skip duplicate unlock trigger. source=$source lastDispatchAgoMs=${now - lastUnlockDispatchAt}",
+                    )
+                    return@postDelayed
+                }
+                lastUnlockDispatchAt = now
                 Log.d(RetentionLog.TAG, "Dispatch unlock trigger after delay. source=$source")
                 scheduler?.handleTrigger(RetentionTriggerType.UNLOCK)
             },
@@ -336,19 +413,44 @@ internal object RetentionEngine {
         )
     }
 
+    @RequiresPermission(Manifest.permission.POST_NOTIFICATIONS)
     private fun handleImmediateTrigger(trigger: RetentionTriggerType, source: String) {
         Log.d(RetentionLog.TAG, "Dispatch ${trigger.extraValue} trigger. source=$source")
         scheduler?.handleTrigger(trigger)
     }
 
-    private fun isDeviceLocked(): Boolean {
-        val keyguardManager =
-            application.getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager ?: return false
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
-            keyguardManager.isDeviceLocked
-        } else {
-            keyguardManager.isKeyguardLocked
+    private fun startUnlockMonitor(source: String) {
+        ensureHandler()
+        unlockMonitorSource = source
+        unlockMonitorDeadlineAt = SystemClock.elapsedRealtime() + UNLOCK_MONITOR_TIMEOUT_MS
+        unlockMonitorUnlockedCount = 0
+        backgroundHandler?.removeCallbacks(unlockMonitorRunnable)
+        Log.d(
+            RetentionLog.TAG,
+            "Start unlock monitor. source=$source isKeyguardLocked=${isKeyguardLocked()} startDelayMs=$UNLOCK_MONITOR_START_DELAY_MS intervalMs=$UNLOCK_MONITOR_INTERVAL_MS stableUnlockCount=$UNLOCK_MONITOR_STABLE_UNLOCK_COUNT timeoutMs=$UNLOCK_MONITOR_TIMEOUT_MS",
+        )
+        backgroundHandler?.postDelayed(unlockMonitorRunnable, UNLOCK_MONITOR_START_DELAY_MS)
+    }
+
+    private fun stopUnlockMonitor(reason: String) {
+        if (unlockMonitorSource == null) {
+            return
         }
+        Log.d(
+            RetentionLog.TAG,
+            "Stop unlock monitor. source=$unlockMonitorSource reason=$reason",
+        )
+        unlockMonitorSource = null
+        unlockMonitorDeadlineAt = 0L
+        unlockMonitorUnlockedCount = 0
+        backgroundHandler?.removeCallbacks(unlockMonitorRunnable)
+    }
+
+    private fun isKeyguardLocked(): Boolean {
+        val keyguardManager =
+            application.getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
+                ?: return false
+        return keyguardManager.isKeyguardLocked
     }
 
     private fun configuredTimerIntervalMs(): Long {

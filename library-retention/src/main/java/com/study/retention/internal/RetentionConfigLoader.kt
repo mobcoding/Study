@@ -111,16 +111,25 @@ internal object RetentionConfigLoader {
                     ),
                 )
             },
+            primaryTarget = rawConfig.toolbar?.primaryTarget?.let { target ->
+                LaunchTarget(
+                    id = target.id.orEmpty().ifBlank { "toolbar_primary_content" },
+                    activityClassName = target.activityClass,
+                    extras = target.extras.toBundle(),
+                )
+            },
         )
         val reminders = RetentionReminderSection(
             bucketOrder = rawConfig.reminders?.bucketOrder.orEmpty(),
             items = rawConfig.reminders?.items.orEmpty().mapNotNull { item ->
-                val iconResId = resolveLargeIcon(application, item.largeIcon) ?: return@mapNotNull null
                 val bucketId = item.bucketId ?: return@mapNotNull null
                 val id = item.id.orEmpty()
                 if (id.isBlank()) {
                     return@mapNotNull null
                 }
+                val imageResId = resolveLargeIcon(application, item.largeIcon) ?: return@mapNotNull null
+                val collapsedPreviewImageResId = resolveOptionalImage(application, item.smallImage)
+                val expandedImageResId = resolveOptionalImage(application, item.expandedImage)
                 val messageResId = resolveString(application, item.messageRes) ?: return@mapNotNull null
                 val actionLabelResId =
                     resolveString(application, item.actionLabelRes) ?: return@mapNotNull null
@@ -132,7 +141,9 @@ internal object RetentionConfigLoader {
                     bucketId = bucketId,
                     messageResId = messageResId,
                     actionLabelResId = actionLabelResId,
-                    largeIconResId = iconResId,
+                    imageResId = imageResId,
+                    collapsedPreviewImageResId = collapsedPreviewImageResId,
+                    expandedImageResId = expandedImageResId,
                     target = LaunchTarget(
                         id = id,
                         activityClassName = item.activityClass,
@@ -205,6 +216,13 @@ internal object RetentionConfigLoader {
                 Log.e(RetentionLog.TAG, "Unable to resolve large icon resource: $name")
                 null
             }
+    }
+
+    private fun resolveOptionalImage(application: Application, name: String?): Int? {
+        if (name.isNullOrBlank()) {
+            return null
+        }
+        return resolveLargeIcon(application, name)
     }
 
     private fun resolveString(application: Application, name: String?): Int? {
