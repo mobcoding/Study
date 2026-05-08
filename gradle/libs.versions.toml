@@ -48,6 +48,7 @@ androidx-paging-runtime = { group = "androidx.paging", name = "paging-runtime", 
 
 androidx-work-runtime-ktx = { module = "androidx.work:work-runtime-ktx", version.ref = "workRuntimeKtxVersion" }
 coil = { module = "io.coil-kt:coil", version.ref = "coilVersion" }
+google-firebase-analytics = { module = "com.google.firebase:firebase-analytics" }
 leakcanary-android = { module = "com.squareup.leakcanary:leakcanary-android", version.ref = "leakcanaryAndroidVersion" }
 okhttp-profiler = { module = "io.nerdythings:okhttp-profiler", version.ref = "okhttpProfilerVersion" }
 onesignal = { module = "com.onesignal:OneSignal", version.ref = "onesignalVersion" }

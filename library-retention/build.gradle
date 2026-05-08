@@ -26,7 +26,7 @@ dependencies {
     implementation libs.androidx.work.runtime.ktx
     implementation libs.androidx.core.ktx
     implementation platform(libs.firebase.bom)
-    implementation "com.google.firebase:firebase-analytics"
+    implementation libs.google.firebase.analytics
     implementation libs.gson
     implementation libs.mmkv
 }
