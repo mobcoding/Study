@@ -20,8 +20,7 @@ roomVersion = "2.8.4"
 pagingVersion = "3.3.6"
 okhttpBom = "5.3.2"
 documentFileVersion = "1.1.0"
-xor = "5.0.0"
-stringfogGradlePlugin = "5.2.0"
+stringfog = "v5.3.1-agp9"
 glide = "5.0.5"
 swiperefresh = "1.2.0"
 mmkv = "2.3.0"
@@ -72,9 +71,9 @@ androidx-startup-runtime = { module = "androidx.startup:startup-runtime", versio
 material = { group = "com.google.android.material", name = "material", version.ref = "material" }
 gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
 glide = { group = "com.github.bumptech.glide", name = "glide", version.ref = "glide" }
-xor = { module = "com.github.megatronking.stringfog:xor", version.ref = "xor" }
+xor = { module = "com.github.zhoutianling.StringFog:xor", version.ref = "stringfog" }
 aabresguard-plugin = { module = "com.bytedance.android:aabresguard-plugin", version.ref = "aabresguardPluginVersion" }
-stringfogGradlePlugin = { module = "com.github.megatronking.stringfog:gradle-plugin", version.ref = "stringfogGradlePlugin" }
+stringfogGradlePlugin = { module = "com.github.zhoutianling.StringFog:gradle-plugin", version.ref = "stringfog" }
 swiperefresh-layout = { group = "androidx.swiperefreshlayout", name = "swiperefreshlayout", version.ref = "swiperefresh" }
 mmkv = { module = "com.tencent:mmkv-static", version.ref = "mmkv" }
 lottie = { module = "com.airbnb.android:lottie", version.ref = "lottieVersion" }

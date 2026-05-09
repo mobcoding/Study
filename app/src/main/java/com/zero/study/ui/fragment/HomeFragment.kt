@@ -155,12 +155,6 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(FragmentHomeBinding::infl
                 16 -> {
                     viewLifecycleOwner.lifecycleScope.launch {
                         AppUpdateHelper.checkUpdate(requireContext())
-                        val response = Post<Response>("http://164.152.30.30:8082/api/session") {
-                            param("email", "660739@traccar.com")
-                            param("password", "660739")
-                        }.await()
-                        val cookies = response.headers("set-cookie")
-                        Log.d("zzz", "onViewCreated:${cookies[0]}")
                     }
 
                 }

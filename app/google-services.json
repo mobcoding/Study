@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "645365061148",
-    "project_id": "aniremoteconfig",
-    "storage_bucket": "aniremoteconfig.appspot.com"
+    "project_number": "921594684113",
+    "project_id": "zero-49bd1",
+    "storage_bucket": "zero-49bd1.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:645365061148:android:ffacb0035692f614c3b1d9",
+        "mobilesdk_app_id": "1:921594684113:android:fd8fb04b65b38d38739bf0",
         "android_client_info": {
           "package_name": "com.study.example"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyDDuw-z3pvrKzOt8xB7d7fPyau3cpM84Vo"
+          "current_key": "AIzaSyANDDMootoq4VJH7wqYg54j3EbQ8QyQdDI"
         }
       ],
       "services": {

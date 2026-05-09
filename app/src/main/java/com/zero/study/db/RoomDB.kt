@@ -2,7 +2,7 @@ package com.zero.study.db
 
 import androidx.room.Database
 import androidx.room.RoomDatabase
-import com.zero.study.ipc.Book
+import com.zero.study.db.entity.BookEntity
 import com.zero.study.db.entity.Car
 import com.zero.study.db.entity.Dog
 import com.zero.study.db.entity.User
@@ -14,7 +14,7 @@ import com.zero.study.db.entity.User
  * exportSchema: 是否允许数据库架构将导出到给定的文件夹中【 默认true 】
  *
  */
-@Database(entities = [User::class, Book::class, Car::class,Dog::class], version = 1, exportSchema = false)
+@Database(entities = [User::class, BookEntity::class, Car::class,Dog::class], version = 1, exportSchema = false)
 abstract class RoomDB : RoomDatabase() {
     abstract fun userDao(): UserDao
     abstract fun bookDao(): BookDao
