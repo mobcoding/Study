@@ -22,8 +22,14 @@ class NotificationActivity : BaseActivity<ActivityNotificationBinding>(ActivityN
     override fun initView() {
     }
 
-    private val notificationLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { _: Boolean? ->
-        ContextCompat.startForegroundService(this@NotificationActivity, Intent(this@NotificationActivity, HealthService::class.java))
+    private val notificationLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted: Boolean? ->
+        if (granted == true) {
+            startHealthService()
+        }
+    }
+
+    private fun startHealthService() {
+        ContextCompat.startForegroundService(this, Intent(this, HealthService::class.java))
     }
 
     private fun checkNotificationAndStartService() {
@@ -32,8 +38,10 @@ class NotificationActivity : BaseActivity<ActivityNotificationBinding>(ActivityN
             if (!notificationPermission) {
                 notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
             } else {
-                ContextCompat.startForegroundService(this@NotificationActivity, Intent(this@NotificationActivity, HealthService::class.java))
+                startHealthService()
             }
+        } else {
+            startHealthService()
         }
     }
 

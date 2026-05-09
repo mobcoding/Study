@@ -35,7 +35,7 @@ android {
 dependencies {
     testImplementation libs.junit
     androidTestImplementation libs.ext.junit
-    implementation project(path: ':library-base')
+    implementation project(path: ':modules:base')
     implementation libs.androidx.camera.camera2
     implementation libs.androidx.camera.lifecycle
     implementation libs.androidx.camera.view

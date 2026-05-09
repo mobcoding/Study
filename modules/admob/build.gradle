@@ -45,10 +45,9 @@ dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar', '*.aar'])
     testImplementation libs.junit
     androidTestImplementation libs.ext.junit
-    implementation project(path: ':library-base')
+    implementation project(path: ':modules:base')
     api(platform(libs.firebase.bom))
     api(libs.firebase.analytics)
-    api project(path: ':third-lib')
     api libs.play.services.ads
     api libs.firebase.config
 }

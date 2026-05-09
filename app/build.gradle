@@ -126,10 +126,10 @@ dependencies {
     implementation libs.xor
     testImplementation libs.junit
     androidTestImplementation libs.ext.junit
-    implementation project(path: ':library-admob')
-    implementation project(path: ':library-base')
-    implementation project(path: ':library-health')
-    implementation project(path: ':library-retention')
+    implementation project(path: ':modules:admob')
+    implementation project(path: ':modules:base')
+    implementation project(path: ':modules:health')
+    implementation project(path: ':modules:retention')
 //    debugImplementation libs.leakcanary.android
     //OKHttp网络请求Android Studio插件
     implementation(libs.okhttp.profiler)

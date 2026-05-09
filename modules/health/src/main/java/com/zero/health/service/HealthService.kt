@@ -10,13 +10,16 @@ import com.google.common.util.concurrent.ListenableFuture
 import com.zero.health.helper.NotifyHelper
 
 class HealthService : MediaLibraryService() {
+    companion object {
+        private const val MEDIA_NOTIFICATION_ID = 0x10080
+    }
 
     private var mediaLibrarySession: MediaLibrarySession? = null
     private lateinit var player: ExoPlayer
 
     override fun onCreate() {
         super.onCreate()
-        NotifyHelper.showMediaNotification(this, notifyId = 0x10080)
+        NotifyHelper.startMediaForeground(this, notifyId = MEDIA_NOTIFICATION_ID)
         player = ExoPlayer.Builder(this).build()
 
         val callback = object : MediaLibrarySession.Callback {

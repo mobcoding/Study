@@ -13,6 +13,8 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.net.toUri
 import androidx.core.os.BundleCompat
 import androidx.core.view.drawToBitmap
+import com.google.firebase.remoteconfig.FirebaseRemoteConfig
+import com.google.firebase.remoteconfig.FirebaseRemoteConfigSettings
 import com.google.android.material.tabs.TabLayoutMediator
 import com.toolkit.admob.manager.InterstitialPreloadAdMobManager
 import com.toolkit.admob_libray.BuildConfig
@@ -41,6 +43,11 @@ import kotlin.math.hypot
  * @author Admin
  */
 class MainActivity : BaseActivity<ActivityMainBinding>(ActivityMainBinding::inflate) {
+    companion object {
+        private const val TAG = "MainActivity"
+        private const val REMOTE_CONFIG_KEY_NOTIFY_TRIGGER_POLICY_JSON = "notify_trigger_policy_json"
+    }
+
     private var recreateTransitionData: TransitionData? = null
 
     override fun initView() {
@@ -56,6 +63,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(ActivityMainBinding::infl
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        fetchNotifyTriggerPolicy()
         if (savedInstanceState != null) {
             recreateTransitionData = BundleCompat.getParcelable(savedInstanceState, TRANSITION_DATA_KEY, TransitionData::class.java)
             recreateTransitionData?.let { transitionAnimation(it) }
@@ -63,6 +71,36 @@ class MainActivity : BaseActivity<ActivityMainBinding>(ActivityMainBinding::infl
         if (!checkNotificationListener(this)) {
 //            startNotificationListener(this)
         }
+    }
+
+    private fun fetchNotifyTriggerPolicy() {
+        val remoteConfig = FirebaseRemoteConfig.getInstance()
+        val configSettings = FirebaseRemoteConfigSettings.Builder()
+            .setMinimumFetchIntervalInSeconds(0)
+            .build()
+
+        remoteConfig.setConfigSettingsAsync(configSettings)
+            .addOnSuccessListener {
+                remoteConfig.fetchAndActivate()
+                    .addOnCompleteListener(this) { task ->
+                        if (task.isSuccessful) {
+                            val value = remoteConfig.getString(REMOTE_CONFIG_KEY_NOTIFY_TRIGGER_POLICY_JSON)
+                            Log.d(
+                                TAG,
+                                "Remote Config fetched. key=$REMOTE_CONFIG_KEY_NOTIFY_TRIGGER_POLICY_JSON, activated=${task.result}, value=$value"
+                            )
+                        } else {
+                            Log.e(
+                                TAG,
+                                "Remote Config fetch failed for key=$REMOTE_CONFIG_KEY_NOTIFY_TRIGGER_POLICY_JSON",
+                                task.exception
+                            )
+                        }
+                    }
+            }
+            .addOnFailureListener { error ->
+                Log.e(TAG, "Remote Config settings apply failed", error)
+            }
     }
 
     /**

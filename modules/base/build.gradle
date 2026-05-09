@@ -56,5 +56,5 @@ dependencies {
     api libs.androidx.fragment.ktx
     //OpenCV
 //    api libs.opencv
-    api project(path: ':library-net')
+    api project(path: ':modules:net')
 }

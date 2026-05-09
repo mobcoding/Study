@@ -25,11 +25,9 @@ dependencyResolutionManagement {
 
 rootProject.name = "Study"
 include ':app'
-include ':library-admob'
-include ':third-lib'
-include ':library-base'
-include ':library-guide'
-include ':library-net'
-include ':library-health'
-
-include ':library-retention'
+include ':modules:admob'
+include ':modules:base'
+include ':modules:guide'
+include ':modules:net'
+include ':modules:health'
+include ':modules:retention'

@@ -2,6 +2,7 @@ package com.zero.health.helper
 
 import android.Manifest
 import android.app.Activity
+import android.app.Notification
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
@@ -27,6 +28,9 @@ import java.util.Date
  * @path:com.zero.health.helper.NotifyHelper
  */
 object NotifyHelper {
+    private const val MEDIA_NOTIFICATION_CHANNEL_SUFFIX = ".search"
+    private const val MEDIA_NOTIFICATION_CHANNEL_NAME_SUFFIX = ".search_channel"
+
     /**
      * 常驻通知(静音，无悬浮，不能自动取消也无法手动删除)
      */
@@ -93,13 +97,13 @@ object NotifyHelper {
             remindNotification)
     }
 
-    fun showMediaNotification(context: Context, notifyId: Int) {
-        val searchNotification = context.createNotification {
+    private fun createMediaNotification(context: Context): Notification {
+        return context.createNotification {
             isPermanent = true
             importance = IMPORTANCE_LOW
             iconRes = R.drawable.ic_alarm_clock
-            channelId = "${context.packageName}.search"
-            channelName = "${context.packageName}.search_channel"
+            channelId = "${context.packageName}$MEDIA_NOTIFICATION_CHANNEL_SUFFIX"
+            channelName = "${context.packageName}$MEDIA_NOTIFICATION_CHANNEL_NAME_SUFFIX"
             val flag = if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_IMMUTABLE else PendingIntent.FLAG_UPDATE_CURRENT
             val clickIntent = Intent(context, AlarmRemindActivity::class.java)
             val pendingIntent = TaskStackBuilder.create(context).run {
@@ -115,6 +119,14 @@ object NotifyHelper {
                 setOnClickPendingIntent(R.id.tv_search, pendingIntent)
             }
         }
+    }
+
+    fun startMediaForeground(service: Service, notifyId: Int) {
+        service.startForeground(notifyId, createMediaNotification(service))
+    }
+
+    fun showMediaNotification(context: Context, notifyId: Int) {
+        val searchNotification = createMediaNotification(context)
         if (ActivityCompat.checkSelfPermission(context,
                 Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) {
