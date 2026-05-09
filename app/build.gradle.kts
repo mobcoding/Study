@@ -24,10 +24,7 @@ val storePasswordValue = extraString("STORE_PASSWORD")
 val keyAliasValue = extraString("KEY_ALIAS")
 val keyPasswordValue = extraString("KEY_PASSWORD")
 
-val enableAabResGuard = providers.gradleProperty("enableAabResGuard")
-    .map(String::toBoolean)
-    .orElse(false)
-    .get()
+val enableAabResGuard = providers.gradleProperty("enableAabResGuard").map(String::toBoolean).orElse(false).get()
 
 val appVersionName = "1.1"
 
@@ -74,20 +71,14 @@ android {
             isDebuggable = true
             isMinifyEnabled = false
             isShrinkResources = false
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
         getByName("release") {
             signingConfig = signingConfigs.getByName("release")
             isDebuggable = false
             isMinifyEnabled = true
             isShrinkResources = true
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
 
@@ -122,10 +113,7 @@ androidComponents {
             }.format(Date())
             val fileName = "Study_${variant.buildType}_V${appVersionName}_${createTime}.apk"
             runCatching {
-                @Suppress("UNCHECKED_CAST")
-                val outputFileName =
-                    output.javaClass.getMethod("getOutputFileName").invoke(output)
-                        as org.gradle.api.provider.Property<String>
+                @Suppress("UNCHECKED_CAST") val outputFileName = output.javaClass.getMethod("getOutputFileName").invoke(output) as Property<String>
                 outputFileName.set(fileName)
             }
         }
@@ -136,32 +124,17 @@ if (enableAabResGuard) {
     extensions.configure<Any>("aabResGuard") {
         withGroovyBuilder {
             setProperty("mappingFile", file("mapping.txt").toPath())
-            setProperty(
-                "whiteList",
-                listOf(
-                    "*.R.raw.*",
-                    "*.R.drawable.icon",
-                    "*.R.string.default_web_client_id",
-                    "*.R.string.firebase_database_url",
-                    "*.R.string.gcm_defaultSenderId",
-                    "*.R.string.google_api_key",
-                    "*.R.string.google_app_id",
-                    "*.R.string.google_crash_reporting_api_key",
-                    "*.R.string.google_storage_bucket",
-                    "*.R.string.project_id",
-                    "*.R.string.com.crashlytics.android.build_id"
-                )
-            )
+            setProperty("whiteList",
+                listOf("*.R.raw.*", "*.R.drawable.icon", "*.R.string.default_web_client_id", "*.R.string.firebase_database_url", "*.R.string.gcm_defaultSenderId", "*.R.string.google_api_key",
+                    "*.R.string.google_app_id", "*.R.string.google_crash_reporting_api_key", "*.R.string.google_storage_bucket", "*.R.string.project_id",
+                    "*.R.string.com.crashlytics.android.build_id"))
             setProperty("obfuscatedBundleFileName", "app_build.aab")
             setProperty("mergeDuplicatedRes", true)
             setProperty("enableFilterFiles", true)
             setProperty("filterList", listOf("BUNDLE-METADATA/*"))
             setProperty("enableFilterStrings", false)
             setProperty("unusedStringPath", file("unused.txt").toPath())
-            setProperty(
-                "languageWhiteList",
-                listOf("en", "ar", "de", "es", "fr", "hi", "in", "ja", "ko", "pt", "ru")
-            )
+            setProperty("languageWhiteList", listOf("en", "ar", "de", "es", "fr", "hi", "in", "ja", "ko", "pt", "ru"))
         }
     }
 }
@@ -174,8 +147,6 @@ dependencies {
     testImplementation(libs.junit)
     androidTestImplementation(libs.ext.junit)
     implementation(libs.xor)
-    implementation(platform(libs.firebase.bom))
-    implementation(libs.firebase.analytics)
     implementation(libs.firebase.crashlytics)
     implementation(libs.okhttp.profiler)
     ksp(libs.androidx.room.compiler)

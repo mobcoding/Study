@@ -67,8 +67,8 @@ dependencies {
     testImplementation(libs.junit)
     androidTestImplementation(libs.ext.junit)
     implementation(project(":modules:base"))
-    implementation(platform(libs.firebase.bom))
-    implementation(libs.firebase.analytics)
-    implementation(libs.play.services.ads)
-    implementation(libs.firebase.config)
+    api(platform(libs.firebase.bom))
+    api(libs.firebase.analytics)
+    api(libs.play.services.ads)
+    api(libs.firebase.config)
 }
