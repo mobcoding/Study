@@ -1,8 +1,5 @@
 import com.github.megatronking.stringfog.plugin.StringFogMode
 import com.github.megatronking.stringfog.plugin.kg.RandomKeyGenerator
-import org.gradle.api.Project
-import org.gradle.kotlin.dsl.configure
-import org.gradle.kotlin.dsl.withGroovyBuilder
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -11,6 +8,7 @@ import java.util.TimeZone
 plugins {
     id("com.android.application")
     id("com.google.gms.google-services")
+    id("com.google.firebase.crashlytics")
     id("com.google.devtools.ksp")
 }
 
@@ -169,13 +167,16 @@ if (enableAabResGuard) {
 }
 
 dependencies {
-    implementation(libs.xor)
-    testImplementation(libs.junit)
-    androidTestImplementation(libs.ext.junit)
     implementation(project(":modules:admob"))
     implementation(project(":modules:base"))
     implementation(project(":modules:health"))
     implementation(project(":modules:retention"))
+    testImplementation(libs.junit)
+    androidTestImplementation(libs.ext.junit)
+    implementation(libs.xor)
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.analytics)
+    implementation(libs.firebase.crashlytics)
     implementation(libs.okhttp.profiler)
     ksp(libs.androidx.room.compiler)
     compileOnly(libs.xposed)
