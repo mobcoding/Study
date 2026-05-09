@@ -10,6 +10,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.animation.LinearInterpolator
 import androidx.annotation.LayoutRes
+import com.zero.base.util.Throttle
 import java.util.concurrent.TimeUnit
 
 /**

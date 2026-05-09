@@ -1,4 +1,4 @@
-package com.zero.base.ext
+package com.zero.base.util
 
 import android.os.SystemClock
 import java.util.concurrent.TimeUnit

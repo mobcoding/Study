@@ -36,6 +36,7 @@ import java.util.Random
  * @author Admin
  */
 class SecondActivity : BaseActivity<ActivitySecondBinding>(ActivitySecondBinding::inflate) {
+    override val useRootWindowInsetsPadding: Boolean = false
 
     private var bookManager: IBookManager? = null
     private var mediaProjectionManager: MediaProjectionManager? = null
@@ -110,6 +111,8 @@ class SecondActivity : BaseActivity<ActivitySecondBinding>(ActivitySecondBinding
     }
 
     override fun initView() {
+        applySystemBarPadding(binding.toolbar, top = true)
+        applyRecyclerViewInsets(binding.recyclerView, bottom = true)
         binding.recyclerView.adapter = bookAdapter
         binding.recyclerView.layoutManager = GridLayoutManager(this@SecondActivity, 4)
         bookAdapter.submitList(bookList)

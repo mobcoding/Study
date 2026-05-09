@@ -22,6 +22,8 @@ import kotlinx.coroutines.withContext
 
 
 class PagingActivity : BaseActivity<ActivityRoomBinding>(ActivityRoomBinding::inflate) {
+    override val useRootWindowInsetsPadding: Boolean = false
+
     private val userDao: UserDao by lazy { DbManager.db.userDao() }
     private val viewModel by lazy {
         ViewModelProvider(this)[UserViewModel::class.java]
@@ -31,6 +33,8 @@ class PagingActivity : BaseActivity<ActivityRoomBinding>(ActivityRoomBinding::in
     }
 
     override fun initView() {
+        applySystemBarPadding(binding.actionBarContainer, top = true)
+        applyRecyclerViewInsets(binding.resultRecycle, bottom = true)
         val stateAdapter = userAdapter.withLoadStateFooter(PagingStateAdapter(userAdapter::retry))
         binding.resultRecycle.let {
             it.layoutManager = LinearLayoutManager(this, RecyclerView.VERTICAL, false)

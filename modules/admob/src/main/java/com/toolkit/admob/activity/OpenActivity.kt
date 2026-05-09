@@ -1,6 +1,7 @@
 package com.toolkit.admob.activity
 
 import android.os.Bundle
+import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import com.toolkit.admob.listener.OpenAdStatusListener
 import com.toolkit.admob.manager.AppOpenAdManager
@@ -12,6 +13,7 @@ import com.toolkit.admob.manager.AppOpenAdManager
 class OpenActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         AppOpenAdManager.showAdIfAvailable(this@OpenActivity, object : OpenAdStatusListener {
             override fun onNotReady(loadFailed: Boolean) {

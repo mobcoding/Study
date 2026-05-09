@@ -8,37 +8,28 @@ import android.annotation.SuppressLint
 import android.content.ContentUris
 import android.content.pm.PackageManager.PERMISSION_GRANTED
 import android.os.Build
-import android.os.Bundle
 import android.provider.MediaStore
 import android.view.View
-import android.widget.Button
-import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AppCompatActivity
-import androidx.cardview.widget.CardView
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.GridLayoutManager
-import androidx.recyclerview.widget.RecyclerView
-import com.zero.study.R
+import com.zero.base.activity.BaseActivity
 import com.zero.study.bean.ImageModel
+import com.zero.study.databinding.ActivityAccessPerBinding
 import com.zero.study.ui.adapter.AlbumAdapter
 import kotlin.concurrent.thread
 import android.view.ViewTreeObserver.OnPreDrawListener as OnPreDrawListener1
 
-class AccessPerActivity : AppCompatActivity() {
+class AccessPerActivity : BaseActivity<ActivityAccessPerBinding>(ActivityAccessPerBinding::inflate) {
 
-    private lateinit var cardLayout: CardView
-    private lateinit var button: Button
-    private lateinit var textView: TextView
-    private lateinit var recyclerView: RecyclerView
-    private lateinit var adapter: AlbumAdapter
-
+    private val adapter = AlbumAdapter()
     private val imageModelList = ArrayList<ImageModel>()
 
-    private val permissionLauncher = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { _ ->
-        checkPermission()
-        loadImages()
-    }
+    private val permissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { _ ->
+            checkPermission()
+            loadImages()
+        }
 
     private fun requestPermissions() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
@@ -50,50 +41,56 @@ class AccessPerActivity : AppCompatActivity() {
         }
     }
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_access_per)
+    override fun initView() {
+        applyRecyclerViewInsets(binding.recyclerView, bottom = true)
 
-        cardLayout = findViewById(R.id.card_layout)
-        button = findViewById(R.id.button)
-        textView = findViewById(R.id.text_view)
-        recyclerView = findViewById(R.id.recycler_view)
-
-        button.setOnClickListener {
+        binding.button.setOnClickListener {
             requestPermissions()
         }
 
-        recyclerView.viewTreeObserver.addOnPreDrawListener(object : OnPreDrawListener1 {
+        binding.recyclerView.viewTreeObserver.addOnPreDrawListener(object : OnPreDrawListener1 {
             override fun onPreDraw(): Boolean {
-                recyclerView.viewTreeObserver.removeOnPreDrawListener(this)
-                val columns = 3
-                adapter = AlbumAdapter()
-                recyclerView.layoutManager = GridLayoutManager(this@AccessPerActivity, columns)
-                recyclerView.adapter = adapter
+                binding.recyclerView.viewTreeObserver.removeOnPreDrawListener(this)
+                binding.recyclerView.layoutManager = GridLayoutManager(this@AccessPerActivity, 3)
+                binding.recyclerView.adapter = adapter
                 loadImages()
                 return false
             }
         })
+
         checkPermission()
     }
 
+    override fun initData() = Unit
+
+    override fun addListener() = Unit
+
     private fun checkPermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && (ContextCompat.checkSelfPermission(this, READ_MEDIA_IMAGES) == PERMISSION_GRANTED || ContextCompat.checkSelfPermission(this, READ_MEDIA_VIDEO) == PERMISSION_GRANTED)) {
-            // Full access on Android 13 (API level 33) or higher
-            cardLayout.visibility = View.GONE
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE && ContextCompat.checkSelfPermission(this, READ_MEDIA_VISUAL_USER_SELECTED) == PERMISSION_GRANTED) {
-            // Partial access on Android 14 (API level 34) or higher
-            textView.text = "你已授权访问部分相册的照片和视频"
-            button.text = "管理"
-            cardLayout.visibility = View.VISIBLE
-        } else if (ContextCompat.checkSelfPermission(this, READ_EXTERNAL_STORAGE) == PERMISSION_GRANTED) {
-            // Full access up to Android 12 (API level 32)
-            cardLayout.visibility = View.GONE
-        } else {
-            // Access denied
-            textView.text = "你还未授权访问相册的照片和视频"
-            button.text = "请求"
-            cardLayout.visibility = View.VISIBLE
+        when {
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                (
+                    ContextCompat.checkSelfPermission(this, READ_MEDIA_IMAGES) == PERMISSION_GRANTED ||
+                        ContextCompat.checkSelfPermission(this, READ_MEDIA_VIDEO) == PERMISSION_GRANTED
+                    ) -> {
+                binding.cardLayout.visibility = View.GONE
+            }
+
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE &&
+                ContextCompat.checkSelfPermission(this, READ_MEDIA_VISUAL_USER_SELECTED) == PERMISSION_GRANTED -> {
+                binding.textView.text = "Partial photo access granted"
+                binding.button.text = "Manage"
+                binding.cardLayout.visibility = View.VISIBLE
+            }
+
+            ContextCompat.checkSelfPermission(this, READ_EXTERNAL_STORAGE) == PERMISSION_GRANTED -> {
+                binding.cardLayout.visibility = View.GONE
+            }
+
+            else -> {
+                binding.textView.text = "Photo access is not granted"
+                binding.button.text = "Request"
+                binding.cardLayout.visibility = View.VISIBLE
+            }
         }
     }
 
@@ -101,12 +98,18 @@ class AccessPerActivity : AppCompatActivity() {
     private fun loadImages() {
         thread {
             imageModelList.clear()
-            val cursor = contentResolver.query(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, null, null, null, "${MediaStore.MediaColumns.DATE_ADDED} desc")
+            val cursor = contentResolver.query(
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                null,
+                null,
+                null,
+                "${MediaStore.MediaColumns.DATE_ADDED} desc"
+            )
             if (cursor != null) {
                 while (cursor.moveToNext()) {
-                    val id = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID))
-                    val uri = ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id)
-//                    imageModelList.add(ImageModel(uri))
+                    val id =
+                        cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID))
+                    ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id)
                 }
                 cursor.close()
             }

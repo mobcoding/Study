@@ -4,12 +4,16 @@ import android.content.Context
 import android.os.Build
 import android.os.Bundle
 import android.view.LayoutInflater
+import android.view.View
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.graphics.Insets
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.core.view.updatePadding
+import androidx.recyclerview.widget.RecyclerView
 import androidx.viewbinding.ViewBinding
 import com.zero.base.fragment.LoadingDialog
 import com.zero.base.theme.AppTheme
@@ -22,8 +26,11 @@ import com.zero.base.util.StorageUtils
  */
 abstract class BaseActivity<VB : ViewBinding>(private val inflate: (LayoutInflater) -> VB) :
     AppCompatActivity() {
+    protected open val useRootWindowInsetsPadding: Boolean = true
+
     lateinit var binding: VB
     private var loadingDialog: LoadingDialog? = null
+    private var systemBarInsets: Insets = Insets.NONE
 
     override fun attachBaseContext(newBase: Context) {
         // 加载本地配置的主题
@@ -57,19 +64,74 @@ abstract class BaseActivity<VB : ViewBinding>(private val inflate: (LayoutInflat
             window.isNavigationBarContrastEnforced = false
         }
         binding = inflate(layoutInflater)
+        val initialRootPadding = binding.root.recordInitialPadding()
         ViewCompat.setOnApplyWindowInsetsListener(binding.root) { v, insets ->
             val systemBars = insets.getInsets(
                 WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
             stateBarHeight = systemBars.top
             navigationBarHeight = systemBars.bottom
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
+            systemBarInsets = systemBars
+            if (useRootWindowInsetsPadding) {
+                v.updatePadding(
+                    left = initialRootPadding.left + systemBars.left,
+                    top = initialRootPadding.top + systemBars.top,
+                    right = initialRootPadding.right + systemBars.right,
+                    bottom = initialRootPadding.bottom + systemBars.bottom
+                )
+            }
+            onSystemBarInsetsChanged(systemBars)
             insets
         }
         setContentView(binding.root)
         initData()
         initView()
         addListener()
+        ViewCompat.requestApplyInsets(binding.root)
     }
+
+    protected open fun onSystemBarInsetsChanged(insets: Insets) = Unit
+
+    protected fun applySystemBarPadding(
+        view: View,
+        left: Boolean = false,
+        top: Boolean = false,
+        right: Boolean = false,
+        bottom: Boolean = false
+    ) {
+        val initialPadding = view.recordInitialPadding()
+        ViewCompat.setOnApplyWindowInsetsListener(view) { v, insets ->
+            val systemBars = insets.getInsets(
+                WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
+            )
+            v.updatePadding(
+                left = initialPadding.left + if (left) systemBars.left else 0,
+                top = initialPadding.top + if (top) systemBars.top else 0,
+                right = initialPadding.right + if (right) systemBars.right else 0,
+                bottom = initialPadding.bottom + if (bottom) systemBars.bottom else 0
+            )
+            insets
+        }
+        ViewCompat.requestApplyInsets(view)
+    }
+
+    protected fun applyRecyclerViewInsets(
+        recyclerView: RecyclerView,
+        top: Boolean = false,
+        bottom: Boolean = true,
+        left: Boolean = false,
+        right: Boolean = false
+    ) {
+        recyclerView.clipToPadding = false
+        applySystemBarPadding(
+            view = recyclerView,
+            left = left,
+            top = top,
+            right = right,
+            bottom = bottom
+        )
+    }
+
+    protected fun currentSystemBarInsets(): Insets = systemBarInsets
 
     fun showLoading() {
         if (isFinishing || isDestroyed) return
@@ -118,6 +180,20 @@ abstract class BaseActivity<VB : ViewBinding>(private val inflate: (LayoutInflat
     companion object {
         const val THEME_KEY = "theme"
     }
+
+    private fun View.recordInitialPadding() = InitialPadding(
+        left = paddingLeft,
+        top = paddingTop,
+        right = paddingRight,
+        bottom = paddingBottom
+    )
+
+    private data class InitialPadding(
+        val left: Int,
+        val top: Int,
+        val right: Int,
+        val bottom: Int
+    )
 
 
 }

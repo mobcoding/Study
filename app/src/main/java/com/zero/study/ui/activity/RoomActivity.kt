@@ -25,6 +25,8 @@ import kotlin.random.Random
 
 
 class RoomActivity : BaseActivity<ActivityRoomBinding>(ActivityRoomBinding::inflate) {
+    override val useRootWindowInsetsPadding: Boolean = false
+
     private val TAG = RoomActivity::class.java.simpleName
     private var list = mutableListOf<User>()
     private val userDao: UserDao by lazy { DbManager.db.userDao() }
@@ -37,6 +39,8 @@ class RoomActivity : BaseActivity<ActivityRoomBinding>(ActivityRoomBinding::infl
     }
 
     override fun initView() {
+        applySystemBarPadding(binding.actionBarContainer, top = true)
+        applyRecyclerViewInsets(binding.resultRecycle, bottom = true)
         binding.resultRecycle.layoutManager = LinearLayoutManager(this, RecyclerView.VERTICAL, false)
         binding.resultRecycle.adapter = userAdapter
     }

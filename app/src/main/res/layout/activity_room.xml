@@ -7,6 +7,7 @@
     tools:context=".ui.activity.RoomActivity">
 
     <LinearLayout
+        android:id="@+id/action_bar_container"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"

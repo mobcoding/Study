@@ -19,6 +19,7 @@ import java.net.URL
 import java.util.concurrent.TimeUnit
 
 class RecyclerViewActivity : BaseActivity<ActivityRecyclerViewBinding>(ActivityRecyclerViewBinding::inflate), OnRefreshListener {
+    override val useRootWindowInsetsPadding: Boolean = false
 
     private var pageNo: Int = 0
     private val mAdapter: LineAdapter by lazy {
@@ -30,6 +31,7 @@ class RecyclerViewActivity : BaseActivity<ActivityRecyclerViewBinding>(ActivityR
     }
 
     override fun initView() {
+        applyRecyclerViewInsets(binding.recyclerView, top = true, bottom = true)
         binding.recyclerView.adapter = mAdapter
 
     }

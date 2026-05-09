@@ -22,6 +22,8 @@ import java.util.Locale
  * @author Admin
  */
 class LanguageActivity : BaseActivity<ActivityLanguageBinding>(ActivityLanguageBinding::inflate) {
+    override val useRootWindowInsetsPadding: Boolean = false
+
     private var isFistTime = false
     private var nativeAdManager: NativeAdManager? = null
     private val stringArray = arrayOf("en", "es", "fr", "ar", "pt", "de", "ja", "ko", "ru", "hi",
@@ -33,6 +35,9 @@ class LanguageActivity : BaseActivity<ActivityLanguageBinding>(ActivityLanguageB
     }
 
     override fun initView() {
+        applySystemBarPadding(binding.toolbar, top = true)
+        applySystemBarPadding(binding.adLayout, bottom = true)
+        applyRecyclerViewInsets(binding.languageRecyclerview, bottom = true)
         nativeAdManager = NativeAdManager(this, BuildConfig.NATIVE_BANNER_LANGUAGE,
             binding.adLayout, R.layout.native_ad_admob_medium)
         InterstitialPreloadAdMobManager.preLoadInterstitialAd(

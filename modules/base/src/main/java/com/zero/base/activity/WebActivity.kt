@@ -13,10 +13,13 @@ import androidx.activity.OnBackPressedCallback
 import com.zero.library_base.databinding.ActivityWebBinding
 
 class WebActivity : BaseActivity<ActivityWebBinding>(ActivityWebBinding::inflate) {
+    override val useRootWindowInsetsPadding: Boolean = false
 
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun initView() {
+        applySystemBarPadding(binding.toolbar, top = true)
+        applySystemBarPadding(binding.webView, bottom = true)
         val webTitle = intent.getStringExtra(EXTRA_WEB_TITLE)
         val webUrl = intent.getStringExtra(EXTRA_WEB_URL)
         binding.tvTitle.text = webTitle

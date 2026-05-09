@@ -2,27 +2,24 @@ package com.zero.study.ui.activity
 
 import android.app.Activity
 import android.content.Intent
-import android.os.Bundle
-import android.view.View
-import androidx.appcompat.app.AppCompatActivity
+import com.zero.base.activity.BaseActivity
 import com.zero.study.databinding.ActivityHelpOverlayBinding
 
 /**
  * @author Admin
  */
-class PermissionOverlayHelpActivity : AppCompatActivity() {
+class PermissionOverlayHelpActivity :
+    BaseActivity<ActivityHelpOverlayBinding>(ActivityHelpOverlayBinding::inflate) {
 
-    private val binding: ActivityHelpOverlayBinding by lazy {
-        ActivityHelpOverlayBinding.inflate(layoutInflater)
-    }
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContentView(binding.root)
+    override fun initView() {
         binding.root.setOnClickListener {
             finish()
         }
     }
+
+    override fun initData() = Unit
+
+    override fun addListener() = Unit
 
     companion object {
         @JvmStatic
