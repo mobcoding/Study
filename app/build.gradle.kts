@@ -24,13 +24,9 @@ val storePasswordValue = extraString("STORE_PASSWORD")
 val keyAliasValue = extraString("KEY_ALIAS")
 val keyPasswordValue = extraString("KEY_PASSWORD")
 
-val enableAabResGuard = providers.gradleProperty("enableAabResGuard").map(String::toBoolean).orElse(false).get()
-
 val appVersionName = "1.1"
 
-if (enableAabResGuard) {
-    apply(plugin = "com.bytedance.android.aabResGuard")
-}
+apply(plugin = "com.bytedance.android.aabResGuard")
 apply(plugin = "stringfog")
 
 android {
@@ -120,22 +116,19 @@ androidComponents {
     }
 }
 
-if (enableAabResGuard) {
-    extensions.configure<Any>("aabResGuard") {
-        withGroovyBuilder {
-            setProperty("mappingFile", file("mapping.txt").toPath())
-            setProperty("whiteList",
-                listOf("*.R.raw.*", "*.R.drawable.icon", "*.R.string.default_web_client_id", "*.R.string.firebase_database_url", "*.R.string.gcm_defaultSenderId", "*.R.string.google_api_key",
-                    "*.R.string.google_app_id", "*.R.string.google_crash_reporting_api_key", "*.R.string.google_storage_bucket", "*.R.string.project_id",
-                    "*.R.string.com.crashlytics.android.build_id"))
-            setProperty("obfuscatedBundleFileName", "app_build.aab")
-            setProperty("mergeDuplicatedRes", true)
-            setProperty("enableFilterFiles", true)
-            setProperty("filterList", listOf("BUNDLE-METADATA/*"))
-            setProperty("enableFilterStrings", false)
-            setProperty("unusedStringPath", file("unused.txt").toPath())
-            setProperty("languageWhiteList", listOf("en", "ar", "de", "es", "fr", "hi", "in", "ja", "ko", "pt", "ru"))
-        }
+extensions.configure<Any>("aabResGuard") {
+    withGroovyBuilder {
+        setProperty("mappingFile", file("mapping.txt").toPath())
+        setProperty("whiteList",
+            listOf("*.R.raw.*", "*.R.drawable.icon", "*.R.string.default_web_client_id", "*.R.string.firebase_database_url", "*.R.string.gcm_defaultSenderId", "*.R.string.google_api_key",
+                "*.R.string.google_app_id", "*.R.string.google_crash_reporting_api_key", "*.R.string.google_storage_bucket", "*.R.string.project_id", "*.R.string.com.crashlytics.android.build_id"))
+        setProperty("obfuscatedBundleFileName", "app_build.aab")
+        setProperty("mergeDuplicatedRes", true)
+        setProperty("enableFilterFiles", true)
+        setProperty("filterList", listOf("BUNDLE-METADATA/*"))
+        setProperty("enableFilterStrings", false)
+        setProperty("unusedStringPath", file("unused.txt").toPath())
+        setProperty("languageWhiteList", listOf("en", "ar", "de", "es", "fr", "hi", "in", "ja", "ko", "pt", "ru"))
     }
 }
 

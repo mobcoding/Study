@@ -140,7 +140,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(ActivityMainBinding::infl
     }
 
     override fun initData() {
-        val viewPagerAdapter = ViewPagerAdapter(this);
+        val viewPagerAdapter = ViewPagerAdapter(this)
         viewPagerAdapter.addFragment(ViewPagerAdapter.FragmentWrapper(getString(R.string.tab_home), R.drawable.tab_home_selector, HomeFragment()))
         viewPagerAdapter.addFragment(ViewPagerAdapter.FragmentWrapper(getString(R.string.tab_editor), R.drawable.tab_editor_selector, SecondFragment()))
         viewPagerAdapter.addFragment(ViewPagerAdapter.FragmentWrapper(getString(R.string.tab_free_style), R.drawable.tab_free_style_selector, ThirdFragment.newInstance()))
@@ -162,7 +162,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>(ActivityMainBinding::infl
 
         binding.ivTransition.post {
             val animator = ValueAnimator.ofFloat()
-            var clipType = ClipImageView.ClipType.CIRCLE
+            var clipType: ClipImageView.ClipType
             when (transitionData.type) {
                 TransitionType.ENTER -> {
                     // 进入动画，裁切掉圆内的区域 圆由小变大

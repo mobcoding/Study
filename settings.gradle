@@ -9,7 +9,7 @@ pluginManagement {
         }
         mavenCentral()
         gradlePluginPortal()
-        maven { url 'https://raw.githubusercontent.com/martinloren/AabResGuard/mvn-repo' }
+        maven { url 'https://jitpack.io' }
     }
 }
 dependencyResolutionManagement {
@@ -17,7 +17,6 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        maven { url 'https://raw.githubusercontent.com/martinloren/AabResGuard/mvn-repo' }
         maven { url 'https://api.xposed.info/' }
         maven { url 'https://jitpack.io' }
     }
