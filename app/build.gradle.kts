@@ -8,7 +8,6 @@ import java.util.TimeZone
 plugins {
     id("com.android.application")
     id("com.google.gms.google-services")
-    id("com.google.firebase.crashlytics")
     id("com.google.devtools.ksp")
 }
 
@@ -140,7 +139,6 @@ dependencies {
     testImplementation(libs.junit)
     androidTestImplementation(libs.ext.junit)
     implementation(libs.xor)
-    implementation(libs.firebase.crashlytics)
     implementation(libs.okhttp.profiler)
     ksp(libs.androidx.room.compiler)
     compileOnly(libs.xposed)
