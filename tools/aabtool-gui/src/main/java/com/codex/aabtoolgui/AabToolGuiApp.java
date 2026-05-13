@@ -282,7 +282,7 @@ public final class AabToolGuiApp {
             logSink.accept("1. AdMob 配置相关");
             emitSection(logSink, admobCount, admobSamples, "  未发现 AdMob 广告位 ID。", "  发现 %d 个 AdMob 广告位 ID：");
 
-            logSink.accept("2. StringFog / 代码混淆 / AabResGuard 开关相关");
+            logSink.accept("2. StringFog/AabResGuard/代码混淆\"");
             logSink.accept("  StringFog：" + (stringFogCount > 0 ? "已启用" : "未发现"));
             logSink.accept("  代码混淆：" + codeObfuscationStatus());
             logSink.accept("  AabResGuard：" + (aabResGuardCount > 0 ? "已启用" : "未发现"));
@@ -320,7 +320,7 @@ public final class AabToolGuiApp {
             logSink.accept("1. AdMob 配置相关");
             emitReadableSection(logSink, admobCount, admobSamples, "  未发现 AdMob 广告位 ID。", "  发现 %d 个 AdMob 广告位 ID：");
 
-            logSink.accept("2. StringFog / 代码混淆 / AabResGuard 开关相关");
+            logSink.accept("2. StringFog/AabResGuard/代码混淆");
             logSink.accept("  StringFog：" + (stringFogCount > 0 ? "已启用" : "未发现"));
             logSink.accept("  代码混淆：" + readableCodeObfuscationStatus());
             logSink.accept("  AabResGuard：" + (aabResGuardCount > 0 ? "已启用" : "未发现"));
