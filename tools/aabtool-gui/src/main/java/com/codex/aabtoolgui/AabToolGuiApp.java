@@ -52,6 +52,11 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
+import javax.xml.parsers.DocumentBuilderFactory;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
 
 public final class AabToolGuiApp {
     private static final String APP_NAME = "AAB Tool GUI 2.0";
@@ -86,7 +91,6 @@ public final class AabToolGuiApp {
         ".mp4", ".avi", ".mkv", ".webm",
         ".so", ".ttf", ".otf", ".woff", ".woff2"
     );
-    private static final int MAX_SAMPLE_COUNT = 12;
     private static final int MAX_SAMPLE_TEXT = 120;
     private static final int MAX_GENERIC_SCAN_BYTES = 4 * 1024 * 1024;
 
@@ -160,6 +164,16 @@ public final class AabToolGuiApp {
         }
     }
 
+    private static final class SourceChineseEntry {
+        private final String source;
+        private final String value;
+
+        private SourceChineseEntry(String source, String value) {
+            this.source = source;
+            this.value = value;
+        }
+    }
+
     private static final class CliOptions {
         private boolean showHelp;
         private final ToolConfig config = new ToolConfig();
@@ -167,6 +181,7 @@ public final class AabToolGuiApp {
 
     private static final class LegacyInspectionReport {
         private final Set<String> apkNames = new LinkedHashSet<>();
+        private final Set<String> chineseKeys = new LinkedHashSet<>();
         private final Set<String> chineseSamples = new LinkedHashSet<>();
         private final Set<String> admobSamples = new LinkedHashSet<>();
         private final Set<String> stringFogSamples = new LinkedHashSet<>();
@@ -191,9 +206,19 @@ public final class AabToolGuiApp {
             apkNames.add(apkName);
         }
 
-        private void addChinese(String sample) {
+        private void addChineseValue(String source, String value) {
+            String normalized = normalizeChineseValue(value);
+            if (normalized.isEmpty() || !chineseKeys.add(normalized)) {
+                return;
+            }
             chineseCount++;
-            addSample(chineseSamples, sample);
+            addSample(chineseSamples, source + " -> " + abbreviate(normalized));
+        }
+
+        private void clearChinese() {
+            chineseKeys.clear();
+            chineseSamples.clear();
+            chineseCount = 0;
         }
 
         private void addAdmob(String sample) {
@@ -302,7 +327,7 @@ public final class AabToolGuiApp {
             logSink.accept("  调试模式：isDebug: " + debugStatus());
 
             logSink.accept("3. 中文字符串相关");
-            emitSection(logSink, chineseCount, chineseSamples, "  未发现中文字符串。", "  发现 %d 处中文字符串：");
+            emitSection(logSink, chineseCount, chineseSamples, "  未发现中文字符串。", "  发现 %d 条中文字符串（去重后）：");
 
             logSink.accept("4. 已申请权限相关");
             if (permissions.isEmpty()) {
@@ -340,7 +365,7 @@ public final class AabToolGuiApp {
             logSink.accept("  调试模式：isDebug: " + readableDebugStatus());
 
             logSink.accept("3. 中文字符串相关");
-            emitReadableSection(logSink, chineseCount, chineseSamples, "  未发现中文字符串。", "  发现 %d 处中文字符串：");
+            emitReadableSection(logSink, chineseCount, chineseSamples, "  未发现中文字符串。", "  发现 %d 条中文字符串（去重后）：");
 
             logSink.accept("4. 已申请权限相关");
             if (permissions.isEmpty()) {
@@ -424,9 +449,7 @@ public final class AabToolGuiApp {
         }
 
         private static void addSample(Set<String> target, String sample) {
-            if (target.size() < MAX_SAMPLE_COUNT) {
-                target.add(sample);
-            }
+            target.add(sample);
         }
     }
 
@@ -1313,6 +1336,7 @@ public final class AabToolGuiApp {
         if (aapt2 != null) {
             inspectDeclaredPermissions(apks, aapt2, report);
         }
+        augmentWithNearbySourceChinese(aab, report);
         augmentWithNearbySourceLocales(aab, report);
         augmentWithNearbyBuildMarkers(aab, report);
         return report;
@@ -1561,9 +1585,6 @@ public final class AabToolGuiApp {
                     continue;
                 }
                 String entryName = entry.getName();
-                if (containsChinese(entryName)) {
-                    report.addChinese(apkName + "!" + entryName);
-                }
                 if (entryName.startsWith("res/")) {
                     report.addResourceEntry(entryName);
                 }
@@ -1591,7 +1612,7 @@ public final class AabToolGuiApp {
         }
 
         for (String value : dexStrings) {
-            inspectReadableValue(apkName + "!" + entryName, value, report);
+            inspectReadableValue(apkName + "!" + entryName, value, report, true, true);
             if (CLASS_DESCRIPTOR_PATTERN.matcher(value).matches()) {
                 report.addClassDescriptor(value);
             }
@@ -1601,25 +1622,29 @@ public final class AabToolGuiApp {
     private static void inspectBinaryEntry(String apkName, String entryName, byte[] bytes, LegacyInspectionReport report) {
         boolean allowChinese = isTextLikeEntry(entryName);
         for (String candidate : extractAsciiStrings(bytes, 6)) {
-            inspectReadableValue(apkName + "!" + entryName, candidate, report, allowChinese);
+            inspectReadableValue(apkName + "!" + entryName, candidate, report, allowChinese, false);
         }
         for (String candidate : extractUtf16LeStrings(bytes, 4)) {
-            inspectReadableValue(apkName + "!" + entryName, candidate, report, allowChinese);
+            inspectReadableValue(apkName + "!" + entryName, candidate, report, allowChinese, false);
         }
     }
 
     private static void inspectReadableValue(String source, String rawValue, LegacyInspectionReport report) {
-        inspectReadableValue(source, rawValue, report, true);
+        inspectReadableValue(source, rawValue, report, true, false);
     }
 
     private static void inspectReadableValue(String source, String rawValue, LegacyInspectionReport report, boolean allowChinese) {
+        inspectReadableValue(source, rawValue, report, allowChinese, false);
+    }
+
+    private static void inspectReadableValue(String source, String rawValue, LegacyInspectionReport report, boolean allowChinese, boolean strictDexChinese) {
         String value = rawValue == null ? "" : rawValue.trim();
         if (value.isEmpty()) {
             return;
         }
 
-        if (allowChinese && containsMeaningfulChinese(value)) {
-            report.addChinese(source + " -> " + abbreviate(value));
+        if (allowChinese && isReportableChineseText(value, strictDexChinese)) {
+            report.addChineseValue(source, value);
         }
 
         Matcher admobMatcher = ADMOB_PATTERN.matcher(value);
@@ -1866,6 +1891,25 @@ public final class AabToolGuiApp {
         return CHINESE_PATTERN.matcher(value).find();
     }
 
+    private static String normalizeChineseValue(String value) {
+        return value == null ? "" : value.trim().replaceAll("\\s+", " ");
+    }
+
+    private static boolean isReportableChineseText(String value, boolean strictDexChinese) {
+        String normalized = normalizeChineseValue(value);
+        if (!containsMeaningfulChinese(normalized)) {
+            return false;
+        }
+        if (looksLikeTechnicalChineseString(normalized)) {
+            return false;
+        }
+        int hanCount = countHanCharacters(normalized);
+        if (strictDexChinese && hanCount < 4) {
+            return false;
+        }
+        return hanCount >= 2;
+    }
+
     private static boolean containsMeaningfulChinese(String value) {
         if (!containsChinese(value)) {
             return false;
@@ -1883,6 +1927,28 @@ public final class AabToolGuiApp {
             }
         }
         return hanCount >= 2 && noisyCount == 0;
+    }
+
+    private static int countHanCharacters(String value) {
+        int count = 0;
+        for (int i = 0; i < value.length(); i++) {
+            if (Character.UnicodeScript.of(value.charAt(i)) == Character.UnicodeScript.HAN) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private static boolean looksLikeTechnicalChineseString(String value) {
+        String lower = value.toLowerCase(Locale.ROOT);
+        return lower.contains("android.permission.")
+            || lower.contains("content://")
+            || lower.contains("http://")
+            || lower.contains("https://")
+            || lower.contains(".xml")
+            || lower.contains(".java")
+            || lower.contains(".kt")
+            || CLASS_DESCRIPTOR_PATTERN.matcher(value).matches();
     }
 
     private static boolean isCommonReadablePunctuation(char value) {
@@ -1921,6 +1987,24 @@ public final class AabToolGuiApp {
         }
     }
 
+    private static void augmentWithNearbySourceChinese(Path aab, LegacyInspectionReport report) {
+        Path current = aab.toAbsolutePath().normalize().getParent();
+        for (int level = 0; level < 8 && current != null; level++) {
+            Path resDir = current.resolve("src").resolve("main").resolve("res");
+            if (Files.isDirectory(resDir)) {
+                List<SourceChineseEntry> sourceEntries = collectChineseFromResDirectory(resDir);
+                if (!sourceEntries.isEmpty()) {
+                    report.clearChinese();
+                    for (SourceChineseEntry entry : sourceEntries) {
+                        report.addChineseValue(entry.source, entry.value);
+                    }
+                    return;
+                }
+            }
+            current = current.getParent();
+        }
+    }
+
     private static LinkedHashSet<String> collectLocalesFromResDirectory(Path resDir) {
         LinkedHashSet<String> locales = new LinkedHashSet<>();
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(resDir, "values*")) {
@@ -1936,6 +2020,76 @@ public final class AabToolGuiApp {
         } catch (IOException ignored) {
         }
         return locales;
+    }
+
+    private static List<SourceChineseEntry> collectChineseFromResDirectory(Path resDir) {
+        List<SourceChineseEntry> entries = new ArrayList<>();
+        try (DirectoryStream<Path> valuesDirs = Files.newDirectoryStream(resDir, "values*")) {
+            for (Path valuesDir : valuesDirs) {
+                if (!Files.isDirectory(valuesDir)) {
+                    continue;
+                }
+                String dirName = valuesDir.getFileName().toString();
+                if (!isLikelyChineseValuesDirectory(dirName)) {
+                    continue;
+                }
+                try (DirectoryStream<Path> xmlFiles = Files.newDirectoryStream(valuesDir, "*.xml")) {
+                    for (Path xmlFile : xmlFiles) {
+                        collectChineseFromResourceFile(resDir, xmlFile, entries);
+                    }
+                } catch (IOException ignored) {
+                }
+            }
+        } catch (IOException ignored) {
+        }
+        return entries;
+    }
+
+    private static boolean isLikelyChineseValuesDirectory(String dirName) {
+        String lower = dirName.toLowerCase(Locale.ROOT);
+        return lower.startsWith("values-zh")
+            || lower.contains("-zh-")
+            || lower.startsWith("values-b+zh");
+    }
+
+    private static void collectChineseFromResourceFile(Path resDir, Path xmlFile, List<SourceChineseEntry> entries) {
+        Document document;
+        try {
+            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+            factory.setNamespaceAware(false);
+            factory.setExpandEntityReferences(false);
+            try {
+                factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+            } catch (Exception ignored) {
+            }
+            document = factory.newDocumentBuilder().parse(Files.newInputStream(xmlFile));
+        } catch (Exception ignored) {
+            return;
+        }
+
+        Element root = document.getDocumentElement();
+        if (root == null) {
+            return;
+        }
+        String relativeSource = "src/main/res/" + resDir.relativize(xmlFile).toString().replace('\\', '/');
+        collectChineseFromResourceNode(root, relativeSource, entries);
+    }
+
+    private static void collectChineseFromResourceNode(Node node, String source, List<SourceChineseEntry> entries) {
+        if (!(node instanceof Element element)) {
+            return;
+        }
+        String tag = element.getTagName();
+        if ("string".equals(tag) || "item".equals(tag)) {
+            String value = normalizeChineseValue(element.getTextContent());
+            if (isReportableChineseText(value, false)) {
+                entries.add(new SourceChineseEntry(source, value));
+            }
+        }
+        NodeList children = element.getChildNodes();
+        for (int i = 0; i < children.getLength(); i++) {
+            collectChineseFromResourceNode(children.item(i), source, entries);
+        }
     }
 
     private static void inspectPotentialMarkerFile(Path file, LegacyInspectionReport report) {
