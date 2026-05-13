@@ -66,6 +66,9 @@ public final class AabToolGuiApp {
     private static final Pattern LAUNCHABLE_ACTIVITY_PATTERN = Pattern.compile("launchable-activity:\\s+name='([^']+)'");
     private static final Pattern USES_PERMISSION_PATTERN = Pattern.compile("uses-permission(?:-sdk-\\d+)?:\\s+name='([^']+)'");
     private static final Pattern DEBUGGABLE_XMLTREE_PATTERN = Pattern.compile("android:debuggable\\(0x0101000f\\)=\\((?:type 0x12|type 0x10)\\)0x([0-9a-fA-F]+)");
+    private static final Pattern APPLICATION_LABEL_RESOURCE_PATTERN = Pattern.compile("android:label\\(0x01010001\\)=@0x([0-9a-fA-F]+)");
+    private static final Pattern RESOURCE_HEADER_PATTERN = Pattern.compile("^\\s*resource\\s+0x([0-9a-fA-F]+)\\b");
+    private static final Pattern RESOURCE_LOCALE_VALUE_PATTERN = Pattern.compile("^\\s*\\(([^)]*)\\)\\s+\"");
     private static final String ADMOB_TEST_UNIT_PREFIX = "ca-app-pub-3940256099942544/";
     private static final String ADMOB_TEST_APP_ID = "ca-app-pub-3940256099942544~3347511713";
     private static final Set<String> OBFUSCATION_PACKAGE_IGNORES = Set.of("google", "adjust", "firebase", "facebook", "androidx");
@@ -225,6 +228,16 @@ public final class AabToolGuiApp {
                 return;
             }
             locales.add(locale);
+        }
+
+        private void replaceLocales(Set<String> locales) {
+            this.locales.clear();
+            if (locales == null) {
+                return;
+            }
+            for (String locale : locales) {
+                addLocale(locale);
+            }
         }
 
         private void setDebuggable(boolean debuggable) {
@@ -1300,6 +1313,7 @@ public final class AabToolGuiApp {
         if (aapt2 != null) {
             inspectDeclaredPermissions(apks, aapt2, report);
         }
+        augmentWithNearbySourceLocales(aab, report);
         augmentWithNearbyBuildMarkers(aab, report);
         return report;
     }
@@ -1319,15 +1333,19 @@ public final class AabToolGuiApp {
             if (debuggable != null) {
                 report.setDebuggable(debuggable);
             }
-            collectLocalesFromBadging(output, report);
-            collectLocalesFromConfigurations(extractedApk.path, aapt2, report);
+            if (!collectLocalesFromAppLabelResource(extractedApk.path, aapt2, report)) {
+                collectLocalesFromBadging(output, report);
+                collectLocalesFromConfigurations(extractedApk.path, aapt2, report);
+            }
         } catch (Exception ignored) {
             try {
                 Boolean debuggable = resolveDebuggableFromManifest(extractedApk.path, aapt2);
                 if (debuggable != null) {
                     report.setDebuggable(debuggable);
                 }
-                collectLocalesFromConfigurations(extractedApk.path, aapt2, report);
+                if (!collectLocalesFromAppLabelResource(extractedApk.path, aapt2, report)) {
+                    collectLocalesFromConfigurations(extractedApk.path, aapt2, report);
+                }
             } catch (Exception ignoredAgain) {
                 // Keep permission reporting best-effort to avoid breaking installation flow.
             }
@@ -1335,6 +1353,43 @@ public final class AabToolGuiApp {
         } finally {
             Files.deleteIfExists(extractedApk.path);
         }
+    }
+
+    private static boolean collectLocalesFromAppLabelResource(Path apk, Path aapt2, LegacyInspectionReport report)
+        throws IOException, InterruptedException {
+        String xmlTree = runCommandQuietly(List.of(aapt2.toString(), "dump", "xmltree", "--file", "AndroidManifest.xml", apk.toString()));
+        Matcher labelMatcher = APPLICATION_LABEL_RESOURCE_PATTERN.matcher(xmlTree);
+        if (!labelMatcher.find()) {
+            return false;
+        }
+        String targetId = "0x" + labelMatcher.group(1).toLowerCase(Locale.ROOT);
+        String resources = runCommandQuietly(List.of(aapt2.toString(), "dump", "resources", apk.toString()));
+        boolean inTargetResource = false;
+        boolean foundAny = false;
+        for (String line : resources.split("\\R")) {
+            Matcher headerMatcher = RESOURCE_HEADER_PATTERN.matcher(line);
+            if (headerMatcher.find()) {
+                String currentId = "0x" + headerMatcher.group(1).toLowerCase(Locale.ROOT);
+                if (inTargetResource && !currentId.equals(targetId)) {
+                    break;
+                }
+                inTargetResource = currentId.equals(targetId);
+                continue;
+            }
+            if (!inTargetResource) {
+                continue;
+            }
+            Matcher localeMatcher = RESOURCE_LOCALE_VALUE_PATTERN.matcher(line);
+            if (!localeMatcher.find()) {
+                continue;
+            }
+            String normalized = normalizeResourceLocale(localeMatcher.group(1));
+            if (normalized != null) {
+                report.addLocale(normalized);
+                foundAny = true;
+            }
+        }
+        return foundAny;
     }
 
     private static void collectLocalesFromBadging(String output, LegacyInspectionReport report) {
@@ -1395,6 +1450,31 @@ public final class AabToolGuiApp {
             }
         }
         return null;
+    }
+
+    private static String normalizeResourceLocale(String qualifier) {
+        if (qualifier == null) {
+            return null;
+        }
+        String trimmed = qualifier.trim();
+        if (trimmed.isEmpty()) {
+            return "en";
+        }
+        return normalizeLocaleQualifier(trimmed);
+    }
+
+    private static String normalizeSourceValuesDirectory(String directoryName) {
+        if ("values".equals(directoryName) || "values-night".equals(directoryName)) {
+            return null;
+        }
+        if (!directoryName.startsWith("values-")) {
+            return null;
+        }
+        String suffix = directoryName.substring("values-".length());
+        if (suffix.isBlank() || suffix.contains("night") || suffix.contains("land") || suffix.contains("port")) {
+            return null;
+        }
+        return normalizeLocaleQualifier(suffix);
     }
 
     private static ExtractedApk extractApkForInspection(Path apks) throws IOException {
@@ -1824,6 +1904,38 @@ public final class AabToolGuiApp {
             inspectPotentialMarkerFile(current.resolve("gradle").resolve("libs.versions.toml"), report);
             current = current.getParent();
         }
+    }
+
+    private static void augmentWithNearbySourceLocales(Path aab, LegacyInspectionReport report) {
+        Path current = aab.toAbsolutePath().normalize().getParent();
+        for (int level = 0; level < 8 && current != null; level++) {
+            Path resDir = current.resolve("src").resolve("main").resolve("res");
+            if (Files.isDirectory(resDir)) {
+                LinkedHashSet<String> sourceLocales = collectLocalesFromResDirectory(resDir);
+                if (!sourceLocales.isEmpty()) {
+                    report.replaceLocales(sourceLocales);
+                    return;
+                }
+            }
+            current = current.getParent();
+        }
+    }
+
+    private static LinkedHashSet<String> collectLocalesFromResDirectory(Path resDir) {
+        LinkedHashSet<String> locales = new LinkedHashSet<>();
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(resDir, "values*")) {
+            for (Path dir : stream) {
+                if (!Files.isDirectory(dir)) {
+                    continue;
+                }
+                String normalized = normalizeSourceValuesDirectory(dir.getFileName().toString());
+                if (normalized != null) {
+                    locales.add(normalized);
+                }
+            }
+        } catch (IOException ignored) {
+        }
+        return locales;
     }
 
     private static void inspectPotentialMarkerFile(Path file, LegacyInspectionReport report) {

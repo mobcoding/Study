@@ -26,8 +26,7 @@ class LanguageActivity : BaseActivity<ActivityLanguageBinding>(ActivityLanguageB
 
     private var isFistTime = false
     private var nativeAdManager: NativeAdManager? = null
-    private val stringArray = arrayOf("en", "es", "fr", "ar", "pt", "de", "ja", "ko", "ru", "hi",
-        "in")
+    private val stringArray = arrayOf("en", "es", "fr", "ar", "pt", "de", "ja", "ko", "ru", "hi", "in")
     private val selectedLanguageKey = "selectedCode"
 
     private val languageAdapter by lazy {
@@ -38,10 +37,8 @@ class LanguageActivity : BaseActivity<ActivityLanguageBinding>(ActivityLanguageB
         applySystemBarPadding(binding.toolbar, top = true)
         applySystemBarPadding(binding.adLayout, bottom = true)
         applyRecyclerViewInsets(binding.languageRecyclerview, bottom = true)
-        nativeAdManager = NativeAdManager(this, BuildConfig.NATIVE_BANNER_LANGUAGE,
-            binding.adLayout, R.layout.native_ad_admob_medium)
-        InterstitialPreloadAdMobManager.preLoadInterstitialAd(
-            BuildConfig.ADMOB_INTERSTITIAL_LANGUAGE)
+        nativeAdManager = NativeAdManager(this, BuildConfig.NATIVE_BANNER_LANGUAGE, binding.adLayout, R.layout.native_ad_admob_medium)
+        InterstitialPreloadAdMobManager.preLoadInterstitialAd(BuildConfig.ADMOB_INTERSTITIAL_LANGUAGE)
         isFistTime = getBoolean(SplashActivity.TIME_START, true)
         binding.ivBack.visibility = if (isFistTime) View.GONE else View.VISIBLE
         val initCode = StorageUtils.getString(selectedLanguageKey, "en")
@@ -61,8 +58,7 @@ class LanguageActivity : BaseActivity<ActivityLanguageBinding>(ActivityLanguageB
                 if (isFistTime) {
                     finish()
                 } else {
-                    InterstitialPreloadAdMobManager.tryShow(this@LanguageActivity,
-                        BuildConfig.ADMOB_INTERSTITIAL_LANGUAGE) {
+                    InterstitialPreloadAdMobManager.tryShow(this@LanguageActivity, BuildConfig.ADMOB_INTERSTITIAL_LANGUAGE) {
                         finish()
                     }
                 }
@@ -74,8 +70,7 @@ class LanguageActivity : BaseActivity<ActivityLanguageBinding>(ActivityLanguageB
             val locale = Locale.forLanguageTag(selectedCode)
             AppCompatDelegate.setApplicationLocales(LocaleListCompat.create(locale))
             if (isFistTime) {
-                InterstitialPreloadAdMobManager.tryShow(this@LanguageActivity,
-                    BuildConfig.ADMOB_INTERSTITIAL_LANGUAGE) {
+                InterstitialPreloadAdMobManager.tryShow(this@LanguageActivity, BuildConfig.ADMOB_INTERSTITIAL_LANGUAGE) {
                     startActivity(Intent(this, MainActivity::class.java))
                     finish()
                 }
