@@ -41,10 +41,12 @@ import java.nio.file.Paths;
 import java.security.CodeSource;
 import java.security.MessageDigest;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
 import java.util.Set;
@@ -64,7 +66,8 @@ public final class AabToolGuiApp {
     private static final String BUNDLED_BUNDLETOOL_RESOURCE = "/embedded/" + BUNDLETOOL_NAME;
     private static final String DEBUG_ALIAS = "aab_debug";
     private static final String DEBUG_PASSWORD = "aab_debug";
-    private static final Pattern ADMOB_PATTERN = Pattern.compile("ca-app-pub-(?:\\d{16}/\\d{10}|\\d+/\\d+)");
+    private static final Pattern ADMOB_AD_UNIT_PATTERN = Pattern.compile("ca-app-pub-(?:\\d{16}/\\d{10}|\\d+/\\d+)");
+    private static final Pattern ADMOB_APP_ID_PATTERN = Pattern.compile("ca-app-pub-\\d{16}~\\d+");
     private static final Pattern CLASS_DESCRIPTOR_PATTERN = Pattern.compile("^L[^;]+;$");
     private static final Pattern CHINESE_PATTERN = Pattern.compile("\\p{IsHan}");
     private static final Pattern PACKAGE_NAME_PATTERN = Pattern.compile("package:\\s+name='([^']+)'");
@@ -74,22 +77,20 @@ public final class AabToolGuiApp {
     private static final Pattern APPLICATION_LABEL_RESOURCE_PATTERN = Pattern.compile("android:label\\(0x01010001\\)=@0x([0-9a-fA-F]+)");
     private static final Pattern RESOURCE_HEADER_PATTERN = Pattern.compile("^\\s*resource\\s+0x([0-9a-fA-F]+)\\b");
     private static final Pattern RESOURCE_LOCALE_VALUE_PATTERN = Pattern.compile("^\\s*\\(([^)]*)\\)\\s+\"");
-    private static final String ADMOB_TEST_UNIT_PREFIX = "ca-app-pub-3940256099942544/";
-    private static final String ADMOB_TEST_APP_ID = "ca-app-pub-3940256099942544~3347511713";
     private static final Set<String> OBFUSCATION_PACKAGE_IGNORES = Set.of("google", "adjust", "firebase", "facebook", "androidx");
-    private static final Set<String> STRINGFOG_MARKERS = Set.of(
-        "stringfog",
-        "com/github/megatronking/stringfog",
-        "com/github/megatronking/stringfog/xor/stringfogimpl",
-        "com/github/megatronking/stringfog/iStringfog".toLowerCase(Locale.ROOT),
-        "stringfogimpl",
-        "istringfog"
-    );
     private static final Set<String> GENERIC_SCAN_SKIPPED_EXTENSIONS = Set.of(
         ".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".heic",
         ".mp3", ".ogg", ".wav", ".aac", ".flac",
         ".mp4", ".avi", ".mkv", ".webm",
         ".so", ".ttf", ".otf", ".woff", ".woff2"
+    );
+    private static final int[] LEGACY_STRINGFOG_OPCODE_SEQUENCE = {0x48, 0x48, 0xb7, 0x8d, 0x4f, 0xd8, 0xd8};
+    private static final Map<Integer, Integer> LEGACY_STRINGFOG_OPCODE_WIDTHS = Map.of(
+        0x48, 2,
+        0xb7, 1,
+        0x8d, 1,
+        0x4f, 2,
+        0xd8, 2
     );
     private static final int MAX_SAMPLE_TEXT = 120;
     private static final int MAX_GENERIC_SCAN_BYTES = 4 * 1024 * 1024;
@@ -164,33 +165,57 @@ public final class AabToolGuiApp {
         }
     }
 
-    private static final class SourceChineseEntry {
-        private final String source;
-        private final String value;
+	    private static final class SourceChineseEntry {
+	        private final String source;
+	        private final String value;
 
         private SourceChineseEntry(String source, String value) {
             this.source = source;
             this.value = value;
-        }
-    }
+	        }
+	    }
 
-    private static final class CliOptions {
-        private boolean showHelp;
-        private final ToolConfig config = new ToolConfig();
-    }
+	    private static final class DexCursor {
+	        private int offset;
+
+	        private DexCursor(int offset) {
+	            this.offset = offset;
+	        }
+	    }
+
+	    private static final class DexMethodMeta {
+	        private final String classDescriptor;
+	        private final String methodName;
+	        private final boolean legacyStringFogCandidate;
+
+	        private DexMethodMeta(String classDescriptor, String methodName, boolean legacyStringFogCandidate) {
+	            this.classDescriptor = classDescriptor;
+	            this.methodName = methodName;
+	            this.legacyStringFogCandidate = legacyStringFogCandidate;
+	        }
+
+	        private String displayName() {
+	            return classDescriptor + "->" + methodName + "([B[B)Ljava/lang/String;";
+	        }
+	    }
+
+	    private static final class CliOptions {
+	        private boolean showHelp;
+	        private final ToolConfig config = new ToolConfig();
+	    }
 
     private static final class LegacyInspectionReport {
         private final Set<String> apkNames = new LinkedHashSet<>();
         private final Set<String> chineseKeys = new LinkedHashSet<>();
         private final Set<String> chineseSamples = new LinkedHashSet<>();
-        private final Set<String> admobSamples = new LinkedHashSet<>();
+        private final Set<String> admobAppIds = new LinkedHashSet<>();
+        private final Set<String> admobAdUnitIds = new LinkedHashSet<>();
         private final Set<String> stringFogSamples = new LinkedHashSet<>();
         private final Set<String> aabResGuardSamples = new LinkedHashSet<>();
         private final Set<String> permissions = new LinkedHashSet<>();
         private final Set<String> locales = new LinkedHashSet<>();
         private final Set<String> logSamples = new LinkedHashSet<>();
         private int chineseCount;
-        private int admobCount;
         private int stringFogCount;
         private int aabResGuardCount;
         private int logCount;
@@ -221,9 +246,12 @@ public final class AabToolGuiApp {
             chineseCount = 0;
         }
 
-        private void addAdmob(String sample) {
-            admobCount++;
-            addSample(admobSamples, sample);
+        private void addAdmobAppId(String sample) {
+            addSample(admobAppIds, sample);
+        }
+
+        private void addAdmobAdUnitId(String sample) {
+            addSample(admobAdUnitIds, sample);
         }
 
         private void addStringFog(String sample) {
@@ -313,12 +341,16 @@ public final class AabToolGuiApp {
             }
         }
 
+        private boolean isLikelyResourceObfuscated() {
+            return totalResourceCount > 0 && shortResourceCount * 2 > totalResourceCount;
+        }
+
         private void logTo(java.util.function.Consumer<String> logSink) {
             logSink.accept("静态检查结果：");
             logSink.accept("  APK 分包：" + (apkNames.isEmpty() ? "未找到" : String.join(", ", apkNames)));
 
             logSink.accept("1. AdMob 配置相关");
-            emitSection(logSink, admobCount, admobSamples, "  未发现 AdMob 广告位 ID。", "  发现 %d 个 AdMob 广告位 ID：");
+            emitAdmobSection(logSink);
 
             logSink.accept("2. StringFog/AabResGuard/代码混淆\"");
             logSink.accept("  StringFog：" + (stringFogCount > 0 ? "已启用" : "未发现"));
@@ -356,7 +388,7 @@ public final class AabToolGuiApp {
             logSink.accept("  APK 分包：" + (apkNames.isEmpty() ? "未找到" : String.join(", ", apkNames)));
 
             logSink.accept("1. AdMob 配置相关");
-            emitReadableSection(logSink, admobCount, admobSamples, "  未发现 AdMob 广告位 ID。", "  发现 %d 个 AdMob 广告位 ID：");
+            emitReadableAdmobSection(logSink);
 
             logSink.accept("2. StringFog/AabResGuard/代码混淆");
             logSink.accept("  StringFog：" + (stringFogCount > 0 ? "已启用" : "未发现"));
@@ -431,6 +463,24 @@ public final class AabToolGuiApp {
             }
         }
 
+        private void emitReadableAdmobSection(java.util.function.Consumer<String> logSink) {
+            if (admobAppIds.isEmpty() && admobAdUnitIds.isEmpty()) {
+                logSink.accept("  未发现 AdMob 配置。");
+                return;
+            }
+            for (String appId : admobAppIds) {
+                logSink.accept("  AdMob app ID:  " + sanitizeDisplayText(appId));
+            }
+            if (admobAdUnitIds.isEmpty()) {
+                logSink.accept("  未发现 admob adUnitId");
+                return;
+            }
+            logSink.accept("  discover admob adUnitId:");
+            for (String adUnitId : admobAdUnitIds) {
+                logSink.accept("  " + sanitizeDisplayText(adUnitId));
+            }
+        }
+
         private static void emitSection(
             java.util.function.Consumer<String> logSink,
             int total,
@@ -445,6 +495,24 @@ public final class AabToolGuiApp {
             logSink.accept(String.format(foundMessage, total));
             for (String sample : samples) {
                 logSink.accept("  - " + sample);
+            }
+        }
+
+        private void emitAdmobSection(java.util.function.Consumer<String> logSink) {
+            if (admobAppIds.isEmpty() && admobAdUnitIds.isEmpty()) {
+                logSink.accept("  未发现 AdMob 配置。");
+                return;
+            }
+            for (String appId : admobAppIds) {
+                logSink.accept("  AdMob app ID:  " + appId);
+            }
+            if (admobAdUnitIds.isEmpty()) {
+                logSink.accept("  未发现 admob adUnitId");
+                return;
+            }
+            logSink.accept("  discover admob adUnitId:");
+            for (String adUnitId : admobAdUnitIds) {
+                logSink.accept("  " + adUnitId);
             }
         }
 
@@ -1336,9 +1404,10 @@ public final class AabToolGuiApp {
         if (aapt2 != null) {
             inspectDeclaredPermissions(apks, aapt2, report);
         }
+        inspectLegacyFeatureFlags(apks, report);
+        augmentWithNearbySourceAdmob(aab, report);
         augmentWithNearbySourceChinese(aab, report);
         augmentWithNearbySourceLocales(aab, report);
-        augmentWithNearbyBuildMarkers(aab, report);
         return report;
     }
 
@@ -1487,9 +1556,9 @@ public final class AabToolGuiApp {
         return normalizeLocaleQualifier(trimmed);
     }
 
-    private static String normalizeSourceValuesDirectory(String directoryName) {
-        if ("values".equals(directoryName) || "values-night".equals(directoryName)) {
-            return null;
+	    private static String normalizeSourceValuesDirectory(String directoryName) {
+	        if ("values".equals(directoryName) || "values-night".equals(directoryName)) {
+	            return null;
         }
         if (!directoryName.startsWith("values-")) {
             return null;
@@ -1497,9 +1566,267 @@ public final class AabToolGuiApp {
         String suffix = directoryName.substring("values-".length());
         if (suffix.isBlank() || suffix.contains("night") || suffix.contains("land") || suffix.contains("port")) {
             return null;
-        }
-        return normalizeLocaleQualifier(suffix);
-    }
+	        }
+	        return normalizeLocaleQualifier(suffix);
+	    }
+
+	    private static void inspectLegacyFeatureFlags(Path apks, LegacyInspectionReport report) throws IOException {
+	        ExtractedApk extractedApk = extractApkForInspection(apks);
+	        try {
+	            inspectLegacyAabResGuard(extractedApk.path, report);
+	            inspectLegacyStringFog(extractedApk.path, report);
+	        } finally {
+	            Files.deleteIfExists(extractedApk.path);
+	        }
+	    }
+
+	    private static void inspectLegacyAabResGuard(Path apk, LegacyInspectionReport report) throws IOException {
+	        try (ZipInputStream apkZip = new ZipInputStream(Files.newInputStream(apk))) {
+	            ZipEntry entry;
+	            while ((entry = apkZip.getNextEntry()) != null) {
+	                if (entry.isDirectory()) {
+	                    continue;
+	                }
+	                String entryName = entry.getName();
+	                if (!entryName.startsWith("res/")) {
+	                    continue;
+	                }
+	                report.addResourceEntry(entryName);
+	            }
+	        }
+	        if (report.isLikelyResourceObfuscated()) {
+	            report.addAabResGuard("旧版资源短名比例匹配");
+	        }
+	    }
+
+	    private static void inspectLegacyStringFog(Path apk, LegacyInspectionReport report) throws IOException {
+	        try (ZipInputStream apkZip = new ZipInputStream(Files.newInputStream(apk))) {
+	            ZipEntry entry;
+	            while ((entry = apkZip.getNextEntry()) != null) {
+	                if (entry.isDirectory()) {
+	                    continue;
+	                }
+	                String entryName = entry.getName().toLowerCase(Locale.ROOT);
+	                if (!entryName.endsWith(".dex")) {
+	                    continue;
+	                }
+	                byte[] dexBytes = apkZip.readAllBytes();
+	                String method = findLegacyStringFogDecryptMethod(dexBytes);
+	                if (method != null) {
+	                    report.addStringFog("旧版解密方法模式 -> " + method);
+	                    return;
+	                }
+	            }
+	        }
+	    }
+
+	    private static String findLegacyStringFogDecryptMethod(byte[] dexBytes) {
+	        if (dexBytes.length < 112 || dexBytes[0] != 'd' || dexBytes[1] != 'e' || dexBytes[2] != 'x') {
+	            return null;
+	        }
+
+	        int stringIdsSize = readLittleEndianInt(dexBytes, 56);
+	        int stringIdsOffset = readLittleEndianInt(dexBytes, 60);
+	        int typeIdsSize = readLittleEndianInt(dexBytes, 64);
+	        int typeIdsOffset = readLittleEndianInt(dexBytes, 68);
+	        int protoIdsSize = readLittleEndianInt(dexBytes, 72);
+	        int protoIdsOffset = readLittleEndianInt(dexBytes, 76);
+	        int methodIdsSize = readLittleEndianInt(dexBytes, 88);
+	        int methodIdsOffset = readLittleEndianInt(dexBytes, 92);
+	        int classDefsSize = readLittleEndianInt(dexBytes, 96);
+	        int classDefsOffset = readLittleEndianInt(dexBytes, 100);
+
+	        if (!isDexRangeValid(dexBytes, stringIdsOffset, (long) stringIdsSize * 4L)
+	            || !isDexRangeValid(dexBytes, typeIdsOffset, (long) typeIdsSize * 4L)
+	            || !isDexRangeValid(dexBytes, protoIdsOffset, (long) protoIdsSize * 12L)
+	            || !isDexRangeValid(dexBytes, methodIdsOffset, (long) methodIdsSize * 8L)
+	            || !isDexRangeValid(dexBytes, classDefsOffset, (long) classDefsSize * 32L)) {
+	            return null;
+	        }
+
+	        String[] strings = readDexStringPool(dexBytes, stringIdsSize, stringIdsOffset);
+	        String[] typeDescriptors = readDexTypeDescriptors(dexBytes, typeIdsSize, typeIdsOffset, strings);
+	        boolean[] targetProtos = readLegacyStringFogProtoFlags(dexBytes, protoIdsSize, protoIdsOffset, typeDescriptors);
+	        DexMethodMeta[] methodMetas = readDexMethodMetas(dexBytes, methodIdsSize, methodIdsOffset, typeDescriptors, strings, targetProtos);
+
+	        for (int i = 0; i < classDefsSize; i++) {
+	            int classDefOffset = classDefsOffset + i * 32;
+	            int classDataOffset = readLittleEndianInt(dexBytes, classDefOffset + 24);
+	            if (classDataOffset <= 0 || classDataOffset >= dexBytes.length) {
+	                continue;
+	            }
+	            String matched = scanLegacyStringFogClassData(dexBytes, classDataOffset, methodMetas);
+	            if (matched != null) {
+	                return matched;
+	            }
+	        }
+	        return null;
+	    }
+
+	    private static boolean isDexRangeValid(byte[] dexBytes, int offset, long length) {
+	        return offset >= 0 && length >= 0 && offset + length <= dexBytes.length;
+	    }
+
+	    private static String[] readDexStringPool(byte[] dexBytes, int stringIdsSize, int stringIdsOffset) {
+	        String[] strings = new String[stringIdsSize];
+	        for (int i = 0; i < stringIdsSize; i++) {
+	            int itemOffset = stringIdsOffset + i * 4;
+	            int stringDataOffset = readLittleEndianInt(dexBytes, itemOffset);
+	            if (stringDataOffset <= 0 || stringDataOffset >= dexBytes.length) {
+	                strings[i] = "";
+	                continue;
+	            }
+	            int cursor = skipUleb128(dexBytes, stringDataOffset);
+	            if (cursor < 0 || cursor >= dexBytes.length) {
+	                strings[i] = "";
+	                continue;
+	            }
+	            ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+	            while (cursor < dexBytes.length && dexBytes[cursor] != 0) {
+	                buffer.write(dexBytes[cursor]);
+	                cursor++;
+	            }
+	            strings[i] = new String(buffer.toByteArray(), StandardCharsets.UTF_8);
+	        }
+	        return strings;
+	    }
+
+	    private static String[] readDexTypeDescriptors(byte[] dexBytes, int typeIdsSize, int typeIdsOffset, String[] strings) {
+	        String[] descriptors = new String[typeIdsSize];
+	        for (int i = 0; i < typeIdsSize; i++) {
+	            int stringIndex = readLittleEndianInt(dexBytes, typeIdsOffset + i * 4);
+	            descriptors[i] = stringIndex >= 0 && stringIndex < strings.length ? strings[stringIndex] : "";
+	        }
+	        return descriptors;
+	    }
+
+	    private static boolean[] readLegacyStringFogProtoFlags(byte[] dexBytes, int protoIdsSize, int protoIdsOffset, String[] typeDescriptors) {
+	        boolean[] matches = new boolean[protoIdsSize];
+	        for (int i = 0; i < protoIdsSize; i++) {
+	            int protoOffset = protoIdsOffset + i * 12;
+	            int returnTypeIndex = readLittleEndianInt(dexBytes, protoOffset + 4);
+	            int parametersOffset = readLittleEndianInt(dexBytes, protoOffset + 8);
+	            String returnType = returnTypeIndex >= 0 && returnTypeIndex < typeDescriptors.length ? typeDescriptors[returnTypeIndex] : "";
+	            if (!"Ljava/lang/String;".equals(returnType)) {
+	                continue;
+	            }
+	            if (!isDexRangeValid(dexBytes, parametersOffset, 8)) {
+	                continue;
+	            }
+	            int parameterCount = readLittleEndianInt(dexBytes, parametersOffset);
+	            if (parameterCount != 2 || !isDexRangeValid(dexBytes, parametersOffset + 4, 4L)) {
+	                continue;
+	            }
+	            int firstTypeIndex = readLittleEndianUnsignedShort(dexBytes, parametersOffset + 4);
+	            int secondTypeIndex = readLittleEndianUnsignedShort(dexBytes, parametersOffset + 6);
+	            String firstType = firstTypeIndex >= 0 && firstTypeIndex < typeDescriptors.length ? typeDescriptors[firstTypeIndex] : "";
+	            String secondType = secondTypeIndex >= 0 && secondTypeIndex < typeDescriptors.length ? typeDescriptors[secondTypeIndex] : "";
+	            matches[i] = "[B".equals(firstType) && "[B".equals(secondType);
+	        }
+	        return matches;
+	    }
+
+	    private static DexMethodMeta[] readDexMethodMetas(
+	        byte[] dexBytes,
+	        int methodIdsSize,
+	        int methodIdsOffset,
+	        String[] typeDescriptors,
+	        String[] strings,
+	        boolean[] targetProtos
+	    ) {
+	        DexMethodMeta[] methods = new DexMethodMeta[methodIdsSize];
+	        for (int i = 0; i < methodIdsSize; i++) {
+	            int methodOffset = methodIdsOffset + i * 8;
+	            int classTypeIndex = readLittleEndianUnsignedShort(dexBytes, methodOffset);
+	            int protoIndex = readLittleEndianUnsignedShort(dexBytes, methodOffset + 2);
+	            int nameIndex = readLittleEndianInt(dexBytes, methodOffset + 4);
+	            String classDescriptor = classTypeIndex >= 0 && classTypeIndex < typeDescriptors.length ? typeDescriptors[classTypeIndex] : "";
+	            String methodName = nameIndex >= 0 && nameIndex < strings.length ? strings[nameIndex] : "";
+	            boolean targetProto = protoIndex >= 0 && protoIndex < targetProtos.length && targetProtos[protoIndex];
+	            methods[i] = new DexMethodMeta(classDescriptor, methodName, targetProto);
+	        }
+	        return methods;
+	    }
+
+	    private static String scanLegacyStringFogClassData(byte[] dexBytes, int classDataOffset, DexMethodMeta[] methodMetas) {
+	        DexCursor cursor = new DexCursor(classDataOffset);
+	        int staticFields = readUleb128(dexBytes, cursor);
+	        int instanceFields = readUleb128(dexBytes, cursor);
+	        int directMethods = readUleb128(dexBytes, cursor);
+	        int virtualMethods = readUleb128(dexBytes, cursor);
+	        if (staticFields < 0 || instanceFields < 0 || directMethods < 0 || virtualMethods < 0) {
+	            return null;
+	        }
+	        if (!skipEncodedFields(dexBytes, cursor, staticFields) || !skipEncodedFields(dexBytes, cursor, instanceFields)) {
+	            return null;
+	        }
+	        String directMatch = scanLegacyStringFogMethods(dexBytes, cursor, directMethods, methodMetas);
+	        if (directMatch != null) {
+	            return directMatch;
+	        }
+	        return scanLegacyStringFogMethods(dexBytes, cursor, virtualMethods, methodMetas);
+	    }
+
+	    private static boolean skipEncodedFields(byte[] dexBytes, DexCursor cursor, int count) {
+	        for (int i = 0; i < count; i++) {
+	            if (readUleb128(dexBytes, cursor) < 0 || readUleb128(dexBytes, cursor) < 0) {
+	                return false;
+	            }
+	        }
+	        return true;
+	    }
+
+	    private static String scanLegacyStringFogMethods(byte[] dexBytes, DexCursor cursor, int count, DexMethodMeta[] methodMetas) {
+	        int methodIndex = 0;
+	        for (int i = 0; i < count; i++) {
+	            int methodIndexDiff = readUleb128(dexBytes, cursor);
+	            int accessFlags = readUleb128(dexBytes, cursor);
+	            int codeOffset = readUleb128(dexBytes, cursor);
+	            if (methodIndexDiff < 0 || accessFlags < 0 || codeOffset < 0) {
+	                return null;
+	            }
+	            methodIndex += methodIndexDiff;
+	            if (methodIndex < 0 || methodIndex >= methodMetas.length) {
+	                return null;
+	            }
+	            DexMethodMeta methodMeta = methodMetas[methodIndex];
+	            if (methodMeta.legacyStringFogCandidate && codeOffset > 0 && matchesLegacyStringFogCode(dexBytes, codeOffset)) {
+	                return methodMeta.displayName();
+	            }
+	        }
+	        return null;
+	    }
+
+	    private static boolean matchesLegacyStringFogCode(byte[] dexBytes, int codeOffset) {
+	        if (!isDexRangeValid(dexBytes, codeOffset, 16)) {
+	            return false;
+	        }
+	        int insnsSize = readLittleEndianInt(dexBytes, codeOffset + 12);
+	        int insnsOffset = codeOffset + 16;
+	        if (insnsSize <= 0 || !isDexRangeValid(dexBytes, insnsOffset, (long) insnsSize * 2L)) {
+	            return false;
+	        }
+	        int[] codeUnits = new int[insnsSize];
+	        for (int i = 0; i < insnsSize; i++) {
+	            codeUnits[i] = readLittleEndianUnsignedShort(dexBytes, insnsOffset + i * 2);
+	        }
+	        for (int start = 0; start < codeUnits.length; start++) {
+	            int cursor = start;
+	            boolean matched = true;
+	            for (int opcode : LEGACY_STRINGFOG_OPCODE_SEQUENCE) {
+	                Integer width = LEGACY_STRINGFOG_OPCODE_WIDTHS.get(opcode);
+	                if (width == null || cursor >= codeUnits.length || (codeUnits[cursor] & 0xFF) != opcode) {
+	                    matched = false;
+	                    break;
+	                }
+	                cursor += width;
+	            }
+	            if (matched) {
+	                return true;
+	            }
+	        }
+	        return false;
+	    }
 
     private static ExtractedApk extractApkForInspection(Path apks) throws IOException {
         Path tempApk = Files.createTempFile("aabtool-launch-", ".apk");
@@ -1578,21 +1905,17 @@ public final class AabToolGuiApp {
     }
 
     private static void inspectSingleApk(String apkName, byte[] apkBytes, LegacyInspectionReport report) throws IOException {
-        try (ZipInputStream apkZip = new ZipInputStream(new ByteArrayInputStream(apkBytes))) {
-            ZipEntry entry;
-            while ((entry = apkZip.getNextEntry()) != null) {
-                if (entry.isDirectory()) {
-                    continue;
-                }
-                String entryName = entry.getName();
-                if (entryName.startsWith("res/")) {
-                    report.addResourceEntry(entryName);
-                }
-
-                byte[] entryBytes = apkZip.readAllBytes();
-                String lowerEntryName = entryName.toLowerCase(Locale.ROOT);
-                if (lowerEntryName.endsWith(".dex")) {
-                    inspectDexFile(apkName, entryName, entryBytes, report);
+	        try (ZipInputStream apkZip = new ZipInputStream(new ByteArrayInputStream(apkBytes))) {
+	            ZipEntry entry;
+	            while ((entry = apkZip.getNextEntry()) != null) {
+	                if (entry.isDirectory()) {
+	                    continue;
+	                }
+	                String entryName = entry.getName();
+	                byte[] entryBytes = apkZip.readAllBytes();
+	                String lowerEntryName = entryName.toLowerCase(Locale.ROOT);
+	                if (lowerEntryName.endsWith(".dex")) {
+	                    inspectDexFile(apkName, entryName, entryBytes, report);
                     continue;
                 }
                 if (shouldScanBinaryEntry(lowerEntryName, entryBytes)) {
@@ -1647,32 +1970,21 @@ public final class AabToolGuiApp {
             report.addChineseValue(source, value);
         }
 
-        Matcher admobMatcher = ADMOB_PATTERN.matcher(value);
-        while (admobMatcher.find()) {
-            String adUnitId = admobMatcher.group().trim();
-            if (adUnitId.startsWith(ADMOB_TEST_UNIT_PREFIX)) {
-                report.addAdmob(adUnitId + "（测试 ID）");
-            } else {
-                report.addAdmob(adUnitId);
-            }
+        Matcher admobAppIdMatcher = ADMOB_APP_ID_PATTERN.matcher(value);
+        while (admobAppIdMatcher.find()) {
+            report.addAdmobAppId(admobAppIdMatcher.group().trim());
         }
 
-        if (value.contains(ADMOB_TEST_APP_ID)) {
-            report.addAdmob(ADMOB_TEST_APP_ID + "（测试 App ID）");
-        }
+	        Matcher admobAdUnitMatcher = ADMOB_AD_UNIT_PATTERN.matcher(value);
+	        while (admobAdUnitMatcher.find()) {
+	            report.addAdmobAdUnitId(admobAdUnitMatcher.group().trim());
+	        }
 
-        String lower = value.toLowerCase(Locale.ROOT);
-        for (String marker : STRINGFOG_MARKERS) {
-            if (lower.contains(marker)) {
-                report.addStringFog(source + " -> " + abbreviate(value));
-                break;
-            }
-        }
-
-        if (lower.contains("android/util/log") || lower.contains("landroid/util/log;")) {
-            report.addLog(source + " -> " + abbreviate(value));
-        }
-    }
+	        String lower = value.toLowerCase(Locale.ROOT);
+	        if (lower.contains("android/util/log") || lower.contains("landroid/util/log;")) {
+	            report.addLog(source + " -> " + abbreviate(value));
+	        }
+	    }
 
     private static boolean isTextLikeEntry(String entryName) {
         String lower = entryName.toLowerCase(Locale.ROOT);
@@ -1776,29 +2088,53 @@ public final class AabToolGuiApp {
         return strings;
     }
 
-    private static int readLittleEndianInt(byte[] bytes, int offset) {
-        if (offset < 0 || offset + 4 > bytes.length) {
-            return -1;
-        }
-        return (bytes[offset] & 0xFF)
-            | ((bytes[offset + 1] & 0xFF) << 8)
-            | ((bytes[offset + 2] & 0xFF) << 16)
-            | ((bytes[offset + 3] & 0xFF) << 24);
-    }
+	    private static int readLittleEndianInt(byte[] bytes, int offset) {
+	        if (offset < 0 || offset + 4 > bytes.length) {
+	            return -1;
+	        }
+	        return (bytes[offset] & 0xFF)
+	            | ((bytes[offset + 1] & 0xFF) << 8)
+	            | ((bytes[offset + 2] & 0xFF) << 16)
+	            | ((bytes[offset + 3] & 0xFF) << 24);
+	    }
 
-    private static int skipUleb128(byte[] bytes, int offset) {
-        int cursor = offset;
-        int guard = 0;
-        while (cursor < bytes.length && guard < 5) {
+	    private static int readLittleEndianUnsignedShort(byte[] bytes, int offset) {
+	        if (offset < 0 || offset + 2 > bytes.length) {
+	            return -1;
+	        }
+	        return (bytes[offset] & 0xFF) | ((bytes[offset + 1] & 0xFF) << 8);
+	    }
+
+	    private static int skipUleb128(byte[] bytes, int offset) {
+	        int cursor = offset;
+	        int guard = 0;
+	        while (cursor < bytes.length && guard < 5) {
             int current = bytes[cursor] & 0xFF;
             cursor++;
             if ((current & 0x80) == 0) {
                 return cursor;
             }
             guard++;
-        }
-        return -1;
-    }
+	        }
+	        return -1;
+	    }
+
+	    private static int readUleb128(byte[] bytes, DexCursor cursor) {
+	        int result = 0;
+	        int shift = 0;
+	        int guard = 0;
+	        while (cursor.offset < bytes.length && guard < 5) {
+	            int current = bytes[cursor.offset] & 0xFF;
+	            cursor.offset++;
+	            result |= (current & 0x7F) << shift;
+	            if ((current & 0x80) == 0) {
+	                return result;
+	            }
+	            shift += 7;
+	            guard++;
+	        }
+	        return -1;
+	    }
 
     private static List<String> extractAsciiStrings(byte[] bytes, int minLength) {
         List<String> values = new ArrayList<>();
@@ -2005,6 +2341,20 @@ public final class AabToolGuiApp {
         }
     }
 
+    private static void augmentWithNearbySourceAdmob(Path aab, LegacyInspectionReport report) {
+        Path current = aab.toAbsolutePath().normalize().getParent();
+        for (int level = 0; level < 8 && current != null; level++) {
+            Path manifest = current.resolve("src").resolve("main").resolve("AndroidManifest.xml");
+            inspectPotentialAdmobFile(manifest, report);
+            Path resDir = current.resolve("src").resolve("main").resolve("res");
+            if (Files.isDirectory(resDir)) {
+                inspectPotentialAdmobResDirectory(resDir, report);
+                return;
+            }
+            current = current.getParent();
+        }
+    }
+
     private static LinkedHashSet<String> collectLocalesFromResDirectory(Path resDir) {
         LinkedHashSet<String> locales = new LinkedHashSet<>();
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(resDir, "values*")) {
@@ -2050,6 +2400,41 @@ public final class AabToolGuiApp {
         return lower.startsWith("values-zh")
             || lower.contains("-zh-")
             || lower.startsWith("values-b+zh");
+    }
+
+    private static void inspectPotentialAdmobResDirectory(Path resDir, LegacyInspectionReport report) {
+        try (DirectoryStream<Path> valuesDirs = Files.newDirectoryStream(resDir, "values*")) {
+            for (Path valuesDir : valuesDirs) {
+                if (!Files.isDirectory(valuesDir)) {
+                    continue;
+                }
+                try (DirectoryStream<Path> xmlFiles = Files.newDirectoryStream(valuesDir, "*.xml")) {
+                    for (Path xmlFile : xmlFiles) {
+                        inspectPotentialAdmobFile(xmlFile, report);
+                    }
+                } catch (IOException ignored) {
+                }
+            }
+        } catch (IOException ignored) {
+        }
+    }
+
+    private static void inspectPotentialAdmobFile(Path file, LegacyInspectionReport report) {
+        if (!Files.isRegularFile(file)) {
+            return;
+        }
+        try {
+            String text = Files.readString(file);
+            Matcher appIdMatcher = ADMOB_APP_ID_PATTERN.matcher(text);
+            while (appIdMatcher.find()) {
+                report.addAdmobAppId(appIdMatcher.group().trim());
+            }
+            Matcher adUnitMatcher = ADMOB_AD_UNIT_PATTERN.matcher(text);
+            while (adUnitMatcher.find()) {
+                report.addAdmobAdUnitId(adUnitMatcher.group().trim());
+            }
+        } catch (IOException ignored) {
+        }
     }
 
     private static void collectChineseFromResourceFile(Path resDir, Path xmlFile, List<SourceChineseEntry> entries) {
