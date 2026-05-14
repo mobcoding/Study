@@ -72,6 +72,10 @@ public final class AabToolGuiApp {
     private static final Pattern CHINESE_PATTERN = Pattern.compile("\\p{IsHan}");
     private static final Pattern PACKAGE_NAME_PATTERN = Pattern.compile("package:\\s+name='([^']+)'");
     private static final Pattern LAUNCHABLE_ACTIVITY_PATTERN = Pattern.compile("launchable-activity:\\s+name='([^']+)'");
+    private static final Pattern VERSION_CODE_PATTERN = Pattern.compile("versionCode='([^']+)'");
+    private static final Pattern VERSION_NAME_PATTERN = Pattern.compile("versionName='([^']+)'");
+    private static final Pattern MIN_SDK_PATTERN = Pattern.compile("minSdkVersion:'([^']+)'");
+    private static final Pattern TARGET_SDK_PATTERN = Pattern.compile("targetSdkVersion:'([^']+)'");
     private static final Pattern USES_PERMISSION_PATTERN = Pattern.compile("uses-permission(?:-sdk-\\d+)?:\\s+name='([^']+)'");
     private static final Pattern DEBUGGABLE_XMLTREE_PATTERN = Pattern.compile("android:debuggable\\(0x0101000f\\)=\\((?:type 0x12|type 0x10)\\)0x([0-9a-fA-F]+)");
     private static final Pattern APPLICATION_LABEL_RESOURCE_PATTERN = Pattern.compile("android:label\\(0x01010001\\)=@0x([0-9a-fA-F]+)");
@@ -226,6 +230,12 @@ public final class AabToolGuiApp {
         private boolean bundleMetadataPresent;
         private boolean debuggable;
         private boolean debuggableResolved;
+        private String packageName = "";
+        private String launchableActivity = "";
+        private String versionCode = "";
+        private String versionName = "";
+        private String minSdkVersion = "";
+        private String targetSdkVersion = "";
 
         private void addApkName(String apkName) {
             apkNames.add(apkName);
@@ -296,6 +306,30 @@ public final class AabToolGuiApp {
         private void setDebuggable(boolean debuggable) {
             this.debuggable = debuggable;
             this.debuggableResolved = true;
+        }
+
+        private void setPackageName(String packageName) {
+            this.packageName = safeTrim(packageName);
+        }
+
+        private void setLaunchableActivity(String launchableActivity) {
+            this.launchableActivity = safeTrim(launchableActivity);
+        }
+
+        private void setVersionCode(String versionCode) {
+            this.versionCode = safeTrim(versionCode);
+        }
+
+        private void setVersionName(String versionName) {
+            this.versionName = safeTrim(versionName);
+        }
+
+        private void setMinSdkVersion(String minSdkVersion) {
+            this.minSdkVersion = safeTrim(minSdkVersion);
+        }
+
+        private void setTargetSdkVersion(String targetSdkVersion) {
+            this.targetSdkVersion = safeTrim(targetSdkVersion);
         }
 
         private void addClassDescriptor(String descriptor) {
@@ -385,21 +419,21 @@ public final class AabToolGuiApp {
 
         private void logToReadable(java.util.function.Consumer<String> logSink) {
             logSink.accept("静态检查结果：");
-            logSink.accept("  APK 分包：" + (apkNames.isEmpty() ? "未找到" : String.join(", ", apkNames)));
+            emitReadableBasicInfoSection(logSink);
 
-            logSink.accept("1. AdMob 配置相关");
+            logSink.accept("2. AdMob 配置相关");
             emitReadableAdmobSection(logSink);
 
-            logSink.accept("2. StringFog/AabResGuard/代码混淆");
+            logSink.accept("3. StringFog/AabResGuard/代码混淆");
             logSink.accept("  StringFog：" + (stringFogCount > 0 ? "已启用" : "未发现"));
             logSink.accept("  代码混淆：" + readableCodeObfuscationStatus());
             logSink.accept("  AabResGuard：" + (aabResGuardCount > 0 ? "已启用" : "未发现"));
             logSink.accept("  调试模式：isDebug: " + readableDebugStatus());
 
-            logSink.accept("3. 中文字符串相关");
+            logSink.accept("4. 中文字符串相关");
             emitReadableSection(logSink, chineseCount, chineseSamples, "  未发现中文字符串。", "  发现 %d 条中文字符串（去重后）：");
 
-            logSink.accept("4. 已申请权限相关");
+            logSink.accept("5. 已申请权限相关");
             if (permissions.isEmpty()) {
                 logSink.accept("  未解析到已申请权限。");
             } else {
@@ -409,7 +443,7 @@ public final class AabToolGuiApp {
                 }
             }
 
-            logSink.accept("5. 多语言支持相关");
+            logSink.accept("6. 多语言支持相关");
             if (locales.isEmpty()) {
                 logSink.accept("  未解析到多语言配置。");
             } else {
@@ -419,6 +453,25 @@ public final class AabToolGuiApp {
                 }
             }
             logSink.accept("");
+        }
+
+        private void emitReadableBasicInfoSection(java.util.function.Consumer<String> logSink) {
+            logSink.accept("1. 基础信息");
+            logSink.accept("  包名: " + displayValue(packageName));
+            logSink.accept("  启动类: " + displayValue(launchableActivity));
+            logSink.accept("  versionCode: " + displayValue(versionCode));
+            logSink.accept("  versionName: " + displayValue(versionName));
+            logSink.accept("  minSdkVersion: " + displayValue(minSdkVersion));
+            logSink.accept("  targetSdkVersion: " + displayValue(targetSdkVersion));
+            logSink.accept("  APK 分包: " + (apkNames.isEmpty() ? "未找到" : String.join(", ", apkNames)));
+        }
+
+        private static String displayValue(String value) {
+            return isBlank(value) ? "未解析到" : value;
+        }
+
+        private static String safeTrim(String value) {
+            return value == null ? "" : value.trim();
         }
 
         private String codeObfuscationStatus() {
@@ -1385,6 +1438,8 @@ public final class AabToolGuiApp {
     private static LegacyInspectionReport inspectGeneratedApks(Path aab, Path apks, Path aapt2) throws IOException {
         LegacyInspectionReport report = new LegacyInspectionReport();
         report.bundleMetadataPresent = containsBundleMetadata(aab);
+        collectBasicInfoFromBundle(aab, report);
+        collectAdmobAppIdFromBundle(aab, report);
 
         try (ZipInputStream apksZip = new ZipInputStream(Files.newInputStream(apks))) {
             ZipEntry apkSetEntry;
@@ -1405,7 +1460,6 @@ public final class AabToolGuiApp {
             inspectDeclaredPermissions(apks, aapt2, report);
         }
         inspectLegacyFeatureFlags(apks, report);
-        augmentWithNearbySourceAdmob(aab, report);
         augmentWithNearbySourceChinese(aab, report);
         augmentWithNearbySourceLocales(aab, report);
         return report;
@@ -1415,6 +1469,7 @@ public final class AabToolGuiApp {
         ExtractedApk extractedApk = extractApkForInspection(apks);
         try {
             String output = runCommandQuietly(List.of(aapt2.toString(), "dump", "badging", extractedApk.path.toString()));
+            collectBasicInfoFromBadging(output, report);
             Matcher matcher = USES_PERMISSION_PATTERN.matcher(output);
             while (matcher.find()) {
                 report.addPermission(matcher.group(1));
@@ -1445,6 +1500,77 @@ public final class AabToolGuiApp {
             // Keep permission reporting best-effort to avoid breaking installation flow.
         } finally {
             Files.deleteIfExists(extractedApk.path);
+        }
+    }
+
+    private static void collectBasicInfoFromBundle(Path aab, LegacyInspectionReport report) {
+        try {
+            Path bundletool = resolveBundletool("");
+            report.setPackageName(runBundleManifestXPath(bundletool, aab, "/manifest/@package"));
+            report.setVersionCode(runBundleManifestXPath(bundletool, aab, "/manifest/@android:versionCode"));
+            report.setVersionName(runBundleManifestXPath(bundletool, aab, "/manifest/@android:versionName"));
+            report.setMinSdkVersion(runBundleManifestXPath(bundletool, aab, "/manifest/uses-sdk/@android:minSdkVersion"));
+            report.setTargetSdkVersion(runBundleManifestXPath(bundletool, aab, "/manifest/uses-sdk/@android:targetSdkVersion"));
+        } catch (Exception ignored) {
+            // Keep static analysis best-effort even if bundle manifest dump is unavailable.
+        }
+    }
+
+    private static void collectAdmobAppIdFromBundle(Path aab, LegacyInspectionReport report) {
+        try {
+            Path bundletool = resolveBundletool("");
+            String appId = runBundleManifestXPath(
+                bundletool,
+                aab,
+                "/manifest/application/meta-data[@android:name='com.google.android.gms.ads.APPLICATION_ID']/@android:value"
+            );
+            if (!isBlank(appId)) {
+                report.addAdmobAppId(appId);
+            }
+        } catch (Exception ignored) {
+            // Keep AdMob detection best-effort even if manifest dump is unavailable.
+        }
+    }
+
+    private static String runBundleManifestXPath(Path bundletool, Path aab, String xpath) throws IOException, InterruptedException {
+        return runCommandQuietly(List.of(
+            "java",
+            "-jar",
+            bundletool.toString(),
+            "dump",
+            "manifest",
+            "--bundle=" + aab,
+            "--xpath=" + xpath
+        )).trim();
+    }
+
+    private static void collectBasicInfoFromBadging(String output, LegacyInspectionReport report) {
+        if (output == null || output.isBlank()) {
+            return;
+        }
+        String packageName = findFirstGroup(PACKAGE_NAME_PATTERN, output);
+        if (isBlank(report.packageName)) {
+            report.setPackageName(packageName);
+        }
+
+        String activityName = findFirstGroup(LAUNCHABLE_ACTIVITY_PATTERN, output);
+        if (!isBlank(packageName) && !isBlank(activityName)) {
+            report.setLaunchableActivity(normalizeActivityName(packageName, activityName));
+        } else {
+            report.setLaunchableActivity(activityName);
+        }
+
+        if (isBlank(report.versionCode)) {
+            report.setVersionCode(findFirstGroup(VERSION_CODE_PATTERN, output));
+        }
+        if (isBlank(report.versionName)) {
+            report.setVersionName(findFirstGroup(VERSION_NAME_PATTERN, output));
+        }
+        if (isBlank(report.minSdkVersion)) {
+            report.setMinSdkVersion(findFirstGroup(MIN_SDK_PATTERN, output));
+        }
+        if (isBlank(report.targetSdkVersion)) {
+            report.setTargetSdkVersion(findFirstGroup(TARGET_SDK_PATTERN, output));
         }
     }
 
@@ -1970,11 +2096,6 @@ public final class AabToolGuiApp {
             report.addChineseValue(source, value);
         }
 
-        Matcher admobAppIdMatcher = ADMOB_APP_ID_PATTERN.matcher(value);
-        while (admobAppIdMatcher.find()) {
-            report.addAdmobAppId(admobAppIdMatcher.group().trim());
-        }
-
 	        Matcher admobAdUnitMatcher = ADMOB_AD_UNIT_PATTERN.matcher(value);
 	        while (admobAdUnitMatcher.find()) {
 	            report.addAdmobAdUnitId(admobAdUnitMatcher.group().trim());
@@ -2341,20 +2462,6 @@ public final class AabToolGuiApp {
         }
     }
 
-    private static void augmentWithNearbySourceAdmob(Path aab, LegacyInspectionReport report) {
-        Path current = aab.toAbsolutePath().normalize().getParent();
-        for (int level = 0; level < 8 && current != null; level++) {
-            Path manifest = current.resolve("src").resolve("main").resolve("AndroidManifest.xml");
-            inspectPotentialAdmobFile(manifest, report);
-            Path resDir = current.resolve("src").resolve("main").resolve("res");
-            if (Files.isDirectory(resDir)) {
-                inspectPotentialAdmobResDirectory(resDir, report);
-                return;
-            }
-            current = current.getParent();
-        }
-    }
-
     private static LinkedHashSet<String> collectLocalesFromResDirectory(Path resDir) {
         LinkedHashSet<String> locales = new LinkedHashSet<>();
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(resDir, "values*")) {
@@ -2400,41 +2507,6 @@ public final class AabToolGuiApp {
         return lower.startsWith("values-zh")
             || lower.contains("-zh-")
             || lower.startsWith("values-b+zh");
-    }
-
-    private static void inspectPotentialAdmobResDirectory(Path resDir, LegacyInspectionReport report) {
-        try (DirectoryStream<Path> valuesDirs = Files.newDirectoryStream(resDir, "values*")) {
-            for (Path valuesDir : valuesDirs) {
-                if (!Files.isDirectory(valuesDir)) {
-                    continue;
-                }
-                try (DirectoryStream<Path> xmlFiles = Files.newDirectoryStream(valuesDir, "*.xml")) {
-                    for (Path xmlFile : xmlFiles) {
-                        inspectPotentialAdmobFile(xmlFile, report);
-                    }
-                } catch (IOException ignored) {
-                }
-            }
-        } catch (IOException ignored) {
-        }
-    }
-
-    private static void inspectPotentialAdmobFile(Path file, LegacyInspectionReport report) {
-        if (!Files.isRegularFile(file)) {
-            return;
-        }
-        try {
-            String text = Files.readString(file);
-            Matcher appIdMatcher = ADMOB_APP_ID_PATTERN.matcher(text);
-            while (appIdMatcher.find()) {
-                report.addAdmobAppId(appIdMatcher.group().trim());
-            }
-            Matcher adUnitMatcher = ADMOB_AD_UNIT_PATTERN.matcher(text);
-            while (adUnitMatcher.find()) {
-                report.addAdmobAdUnitId(adUnitMatcher.group().trim());
-            }
-        } catch (IOException ignored) {
-        }
     }
 
     private static void collectChineseFromResourceFile(Path resDir, Path xmlFile, List<SourceChineseEntry> entries) {
