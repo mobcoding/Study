@@ -26,9 +26,11 @@ import java.awt.FlowLayout;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
+import java.awt.Point;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.awt.geom.Rectangle2D;
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -46,6 +48,7 @@ import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -100,7 +103,8 @@ public final class AabToolGuiApp {
         0x4f, 2,
         0xd8, 2
     );
-    private static final int GUI_CHINESE_PREVIEW_LIMIT = 20;
+    private static final int GUI_SECTION_PREVIEW_LIMIT = 20;
+    private static final int GUI_CHINESE_PREVIEW_LIMIT = GUI_SECTION_PREVIEW_LIMIT;
     private static final int MAX_SAMPLE_TEXT = 120;
     private static final int MAX_GENERIC_SCAN_BYTES = 4 * 1024 * 1024;
 
@@ -665,8 +669,10 @@ public final class AabToolGuiApp {
         private final JButton advancedToggleButton = new JButton("显示高级选项");
         private final JButton startButton = new JButton("开始");
         private final JTextArea logArea = new JTextArea(26, 88);
+        private final JScrollPane logScrollPane = new JScrollPane(logArea);
         private final JPanel advancedPanel = new JPanel(new GridBagLayout());
         private final List<String> rawLogLines = new ArrayList<>();
+        private final Set<String> expandedSections = new LinkedHashSet<>();
         private boolean advancedVisible;
         private boolean chineseExpanded;
         private RenderedLog renderedLog = RenderedLog.empty();
@@ -771,11 +777,10 @@ public final class AabToolGuiApp {
             };
             logArea.addMouseListener(logMouseAdapter);
             logArea.addMouseMotionListener(logMouseAdapter);
-            JScrollPane scrollPane = new JScrollPane(logArea);
-            scrollPane.setBorder(BorderFactory.createTitledBorder("日志"));
+            logScrollPane.setBorder(BorderFactory.createTitledBorder("日志"));
 
             JPanel panel = new JPanel(new BorderLayout());
-            panel.add(scrollPane, BorderLayout.CENTER);
+            panel.add(logScrollPane, BorderLayout.CENTER);
             return panel;
         }
 
@@ -1071,7 +1076,7 @@ public final class AabToolGuiApp {
             autoLaunchAfterInstallBox.setSelected(settings.getBoolean("autoLaunchAfterInstall", true));
             autoUninstallOnSignatureMismatchBox.setSelected(settings.getBoolean("autoUninstallOnSignatureMismatch", false));
             allowDowngradeBox.setSelected(settings.getBoolean("allowDowngrade", false));
-            grantRuntimePermissionsBox.setSelected(settings.getBoolean("grantRuntimePermissions", false));
+            grantRuntimePermissionsBox.setSelected(false);
         }
 
         private void saveSettings(ToolConfig config) {
@@ -1172,43 +1177,88 @@ public final class AabToolGuiApp {
 
         private void resetLogArea() {
             rawLogLines.clear();
-            chineseExpanded = false;
-            renderLogArea();
+            expandedSections.clear();
+            renderLogArea(false, false);
         }
 
         private void appendLog(String line) {
             rawLogLines.add(line);
-            renderLogArea();
+            renderLogArea(false, true);
         }
 
-        private void renderLogArea() {
+        private void renderLogArea(boolean preserveView, boolean scrollToBottom) {
+            ScrollAnchor anchor = preserveView ? captureScrollAnchor() : null;
             renderedLog = buildRenderedLog();
             StringBuilder builder = new StringBuilder();
             for (String line : renderedLog.lines) {
                 builder.append(line).append(System.lineSeparator());
             }
             logArea.setText(builder.toString());
-            logArea.setCaretPosition(logArea.getDocument().getLength());
+            if (anchor != null) {
+                SwingUtilities.invokeLater(() -> restoreScrollAnchor(anchor));
+            } else if (scrollToBottom) {
+                logArea.setCaretPosition(logArea.getDocument().getLength());
+            } else {
+                logArea.setCaretPosition(0);
+            }
             logArea.setCursor(Cursor.getDefaultCursor());
         }
 
+        private ScrollAnchor captureScrollAnchor() {
+            try {
+                Point viewPosition = logScrollPane.getViewport().getViewPosition();
+                int offset = logArea.viewToModel2D(new Point(0, viewPosition.y));
+                if (offset < 0) {
+                    return null;
+                }
+                int line = logArea.getLineOfOffset(offset);
+                Rectangle2D rect = logArea.modelToView2D(logArea.getLineStartOffset(line));
+                int lineY = rect == null ? viewPosition.y : (int) rect.getY();
+                return new ScrollAnchor(line, Math.max(0, viewPosition.y - lineY), viewPosition.x);
+            } catch (BadLocationException ignored) {
+                return null;
+            }
+        }
+
+        private void restoreScrollAnchor(ScrollAnchor anchor) {
+            try {
+                int lineCount = Math.max(1, logArea.getLineCount());
+                int targetLine = Math.min(anchor.line, lineCount - 1);
+                Rectangle2D rect = logArea.modelToView2D(logArea.getLineStartOffset(targetLine));
+                int baseY = rect == null ? 0 : (int) rect.getY();
+                logScrollPane.getViewport().setViewPosition(new Point(anchor.x, Math.max(0, baseY + anchor.offsetWithinLine)));
+            } catch (BadLocationException ignored) {
+                logScrollPane.getViewport().setViewPosition(new Point(0, 0));
+            }
+        }
+
         private RenderedLog buildRenderedLog() {
+            if (Boolean.TRUE.booleanValue()) {
+                return buildRenderedLogV2();
+            }
             List<String> lines = new ArrayList<>();
+            Map<Integer, ToggleAction> toggleActions = new HashMap<>();
             int toggleLineIndex = -1;
+            int chineseHeaderLineIndex = -1;
             int index = 0;
             while (index < rawLogLines.size()) {
                 String line = rawLogLines.get(index);
-                if (!isChineseSectionHeader(line)) {
+                if (!isTopLevelSectionHeader(line)) {
                     lines.add(line);
                     index++;
                     continue;
                 }
 
+                int headerLineIndex = lines.size();
                 lines.add(line);
                 index++;
                 List<String> sectionLines = new ArrayList<>();
-                while (index < rawLogLines.size() && !isTopLevelSectionHeader(rawLogLines.get(index))) {
-                    sectionLines.add(rawLogLines.get(index));
+                while (index < rawLogLines.size()) {
+                    String candidateLine = rawLogLines.get(index);
+                    if (isTopLevelSectionHeader(candidateLine) || isSectionBoundaryLine(candidateLine)) {
+                        break;
+                    }
+                    sectionLines.add(candidateLine);
                     index++;
                 }
 
@@ -1235,23 +1285,172 @@ public final class AabToolGuiApp {
                     lines.add("  ... 点击收起");
                 }
             }
-            return new RenderedLog(lines, toggleLineIndex);
+            return new RenderedLog(lines, toggleLineIndex, chineseHeaderLineIndex);
         }
 
         private void handleLogAreaClick(MouseEvent event) {
+            if (Boolean.TRUE.booleanValue()) {
+                handleLogAreaClickV2(event);
+                return;
+            }
             int lineIndex = resolveLogLineIndex(event);
             if (lineIndex < 0 || lineIndex != renderedLog.toggleLineIndex) {
                 return;
             }
-            chineseExpanded = !chineseExpanded;
-            renderLogArea();
+            if (chineseExpanded) {
+                chineseExpanded = false;
+                int headerLineIndex = renderedLog.chineseHeaderLineIndex;
+                renderLogArea(false, false);
+                if (headerLineIndex >= 0) {
+                    SwingUtilities.invokeLater(() -> restoreScrollAnchor(new ScrollAnchor(headerLineIndex, 0, 0)));
+                }
+            } else {
+                chineseExpanded = true;
+                renderLogArea(true, false);
+            }
         }
 
         private void updateLogCursor(MouseEvent event) {
+            if (Boolean.TRUE.booleanValue()) {
+                updateLogCursorV2(event);
+                return;
+            }
             int lineIndex = resolveLogLineIndex(event);
             logArea.setCursor(lineIndex >= 0 && lineIndex == renderedLog.toggleLineIndex
                 ? Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
                 : Cursor.getDefaultCursor());
+        }
+
+        private RenderedLog buildRenderedLogV2() {
+            List<String> lines = new ArrayList<>();
+            Map<Integer, ToggleAction> toggleActions = new HashMap<>();
+            int index = 0;
+            while (index < rawLogLines.size()) {
+                String line = rawLogLines.get(index);
+                if (!isTopLevelSectionHeader(line)) {
+                    lines.add(line);
+                    index++;
+                    continue;
+                }
+
+                int headerLineIndex = lines.size();
+                lines.add(line);
+                index++;
+                List<String> sectionLines = new ArrayList<>();
+                while (index < rawLogLines.size()) {
+                    String candidateLine = rawLogLines.get(index);
+                    if (isTopLevelSectionHeader(candidateLine) || isSectionBoundaryLine(candidateLine)) {
+                        break;
+                    }
+                    sectionLines.add(candidateLine);
+                    index++;
+                }
+
+                String sectionKey = resolveCollapsibleSectionKey(line);
+                if (sectionKey == null) {
+                    lines.addAll(sectionLines);
+                    continue;
+                }
+
+                int detailLineCount = 0;
+                int hiddenCount = 0;
+                boolean expanded = expandedSections.contains(sectionKey);
+                for (String sectionLine : sectionLines) {
+                    if (!isCollapsibleDetailLine(sectionKey, sectionLine)) {
+                        lines.add(sectionLine);
+                        continue;
+                    }
+                    detailLineCount++;
+                    if (expanded || detailLineCount <= GUI_SECTION_PREVIEW_LIMIT) {
+                        lines.add(sectionLine);
+                    } else {
+                        hiddenCount++;
+                    }
+                }
+
+                if (hiddenCount > 0) {
+                    int toggleLineIndex = lines.size();
+                    lines.add(buildExpandPrompt(hiddenCount));
+                    toggleActions.put(toggleLineIndex, new ToggleAction(sectionKey, headerLineIndex, false));
+                } else if (expanded && detailLineCount > GUI_SECTION_PREVIEW_LIMIT) {
+                    int toggleLineIndex = lines.size();
+                    lines.add(buildCollapsePrompt());
+                    toggleActions.put(toggleLineIndex, new ToggleAction(sectionKey, headerLineIndex, true));
+                }
+            }
+            return new RenderedLog(lines, toggleActions);
+        }
+
+        private void handleLogAreaClickV2(MouseEvent event) {
+            int lineIndex = resolveLogLineIndex(event);
+            if (lineIndex < 0) {
+                return;
+            }
+            ToggleAction action = renderedLog.toggleActions.get(lineIndex);
+            if (action == null) {
+                return;
+            }
+            if (action.collapse) {
+                expandedSections.remove(action.sectionKey);
+                renderLogArea(false, false);
+                if (action.headerLineIndex >= 0) {
+                    SwingUtilities.invokeLater(() -> restoreScrollAnchor(new ScrollAnchor(action.headerLineIndex, 0, 0)));
+                }
+            } else {
+                expandedSections.add(action.sectionKey);
+                renderLogArea(true, false);
+            }
+        }
+
+        private void updateLogCursorV2(MouseEvent event) {
+            int lineIndex = resolveLogLineIndex(event);
+            logArea.setCursor(lineIndex >= 0 && renderedLog.toggleActions.containsKey(lineIndex)
+                ? Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+                : Cursor.getDefaultCursor());
+        }
+
+        private static String resolveCollapsibleSectionKey(String line) {
+            if (line == null) {
+                return null;
+            }
+            if (line.startsWith("2. ")) {
+                return "admob";
+            }
+            if (line.startsWith("4. ")) {
+                return "chinese";
+            }
+            if (line.startsWith("5. ")) {
+                return "permissions";
+            }
+            if (line.startsWith("6. ")) {
+                return "locales";
+            }
+            return null;
+        }
+
+        private static boolean isCollapsibleDetailLine(String sectionKey, String line) {
+            if (sectionKey == null || line == null) {
+                return false;
+            }
+            if ("admob".equals(sectionKey)) {
+                return ADMOB_AD_UNIT_PATTERN.matcher(line.trim()).matches();
+            }
+            return line.startsWith("  - ");
+        }
+
+        private static boolean isSectionBoundaryLine(String line) {
+            if (line == null || line.isBlank()) {
+                return true;
+            }
+            return !Character.isWhitespace(line.charAt(0));
+        }
+
+        private static String buildExpandPrompt(int hiddenCount) {
+            return "  ... \u70b9\u51fb\u5c55\u5f00\u5168\u90e8\uff08\u5df2\u7701\u7565 " + hiddenCount + " \u6761\uff09";
+        }
+
+        private static String buildCollapsePrompt() {
+            return "  ... \u70b9\u51fb\u6536\u8d77";
         }
 
         private int resolveLogLineIndex(MouseEvent event) {
@@ -1281,14 +1480,49 @@ public final class AabToolGuiApp {
         private static final class RenderedLog {
             private final List<String> lines;
             private final int toggleLineIndex;
+            private final int chineseHeaderLineIndex;
+            private final Map<Integer, ToggleAction> toggleActions;
 
-            private RenderedLog(List<String> lines, int toggleLineIndex) {
+            private RenderedLog(List<String> lines, int toggleLineIndex, int chineseHeaderLineIndex) {
                 this.lines = lines;
                 this.toggleLineIndex = toggleLineIndex;
+                this.chineseHeaderLineIndex = chineseHeaderLineIndex;
+                this.toggleActions = Map.of();
+            }
+
+            private RenderedLog(List<String> lines, Map<Integer, ToggleAction> toggleActions) {
+                this.lines = lines;
+                this.toggleLineIndex = -1;
+                this.chineseHeaderLineIndex = -1;
+                this.toggleActions = toggleActions;
             }
 
             private static RenderedLog empty() {
-                return new RenderedLog(List.of(), -1);
+                return new RenderedLog(List.of(), Map.of());
+            }
+        }
+
+        private static final class ToggleAction {
+            private final String sectionKey;
+            private final int headerLineIndex;
+            private final boolean collapse;
+
+            private ToggleAction(String sectionKey, int headerLineIndex, boolean collapse) {
+                this.sectionKey = sectionKey;
+                this.headerLineIndex = headerLineIndex;
+                this.collapse = collapse;
+            }
+        }
+
+        private static final class ScrollAnchor {
+            private final int line;
+            private final int offsetWithinLine;
+            private final int x;
+
+            private ScrollAnchor(int line, int offsetWithinLine, int x) {
+                this.line = line;
+                this.offsetWithinLine = offsetWithinLine;
+                this.x = x;
             }
         }
     }
