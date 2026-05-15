@@ -1606,18 +1606,15 @@ public final class AabToolGuiApp {
             return new ExecutionResult(true, "APK 集构建完成：" + output);
         }
 
-        LaunchTarget launchTarget = null;
-        if (aapt2 != null && !isBlank(resolvedDeviceId)) {
-            launchTarget = detectLaunchTarget(output, aapt2, logSink);
-            if (launchTarget != null && !isBlank(launchTarget.packageName)) {
-                boolean installed = isPackageInstalled(launchTarget.packageName, adbArg, resolvedDeviceId, logSink);
-                if (installed) {
-                    logSink.accept("设备上已安装同包名应用：" + launchTarget.packageName);
-                    if (!config.autoUninstallOnSignatureMismatch) {
-                        logSink.accept("提示：如果旧应用签名不同，安装时可能出现 UPDATE_INCOMPATIBLE。");
-                    }
-                    logSink.accept("");
+        LaunchTarget launchTarget = resolveLaunchTarget(aab, output, aapt2, logSink);
+        if (!isBlank(resolvedDeviceId) && launchTarget != null && !isBlank(launchTarget.packageName)) {
+            boolean installed = isPackageInstalled(launchTarget.packageName, adbArg, resolvedDeviceId, logSink);
+            if (installed) {
+                logSink.accept("设备上已安装同包名应用：" + launchTarget.packageName);
+                if (!config.autoUninstallOnSignatureMismatch) {
+                    logSink.accept("提示：如果旧应用签名不同，安装时可能出现 UPDATE_INCOMPATIBLE。");
                 }
+                logSink.accept("");
             }
         }
 
@@ -1686,16 +1683,14 @@ public final class AabToolGuiApp {
             logSink.accept("");
             return "已跳过自动启动。";
         }
-        if (aapt2 == null) {
-            logSink.accept("自动启动已跳过：缺少 AAPT2，无法解析启动页。");
-            logSink.accept("");
-            return "已跳过自动启动。";
-        }
 
         try {
-            LaunchTarget target = knownTarget != null ? knownTarget : detectLaunchTarget(apks, aapt2, logSink);
+            LaunchTarget target = knownTarget;
+            if ((target == null || isBlank(target.packageName)) && aapt2 != null) {
+                target = detectLaunchTarget(apks, aapt2, logSink);
+            }
             if (target == null || isBlank(target.packageName)) {
-                logSink.accept("自动启动已跳过：无法从生成的 APK 中解析包名。");
+                logSink.accept("自动启动已跳过：无法解析包名。");
                 logSink.accept("");
                 return "已跳过自动启动。";
             }
@@ -1749,6 +1744,75 @@ public final class AabToolGuiApp {
 
     private static boolean containsUpdateIncompatible(String output) {
         return output.toLowerCase(Locale.ROOT).contains("install_failed_update_incompatible");
+    }
+
+    private static LaunchTarget resolveLaunchTarget(Path aab, Path apks, Path aapt2, java.util.function.Consumer<String> logSink) throws Exception {
+        LaunchTarget bundleTarget = detectLaunchTargetFromBundle(aab);
+        LaunchTarget apkTarget = null;
+        if (aapt2 != null) {
+            apkTarget = detectLaunchTarget(apks, aapt2, logSink);
+        }
+
+        LaunchTarget merged = mergeLaunchTarget(bundleTarget, apkTarget);
+        if (merged != null && !isBlank(merged.packageName) && apkTarget == null) {
+            logSink.accept("自动启动目标：" + merged.packageName
+                + (isBlank(merged.launchableActivity) ? "（通过 AAB Manifest 解析）" : " / " + merged.launchableActivity + "（通过 AAB Manifest 解析）"));
+            logSink.accept("");
+        }
+        return merged;
+    }
+
+    private static LaunchTarget mergeLaunchTarget(LaunchTarget preferred, LaunchTarget fallback) {
+        if ((preferred == null || isBlank(preferred.packageName)) && (fallback == null || isBlank(fallback.packageName))) {
+            return null;
+        }
+        String packageName = preferred != null && !isBlank(preferred.packageName) ? preferred.packageName : fallback.packageName;
+        String launchableActivity = preferred != null && !isBlank(preferred.launchableActivity)
+            ? preferred.launchableActivity
+            : (fallback == null ? "" : fallback.launchableActivity);
+        return new LaunchTarget(packageName, launchableActivity == null ? "" : launchableActivity);
+    }
+
+    private static LaunchTarget detectLaunchTargetFromBundle(Path aab) {
+        try {
+            Path bundletool = resolveBundletool("");
+            String packageName = runBundleManifestXPath(bundletool, aab, "/manifest/@package");
+            if (isBlank(packageName)) {
+                return null;
+            }
+            String activityName = firstNonBlank(
+                runBundleManifestXPath(
+                    bundletool,
+                    aab,
+                    "/manifest/application/activity-alias[" +
+                        "intent-filter/action[@android:name='android.intent.action.MAIN'] and " +
+                        "intent-filter/category[@android:name='android.intent.category.LAUNCHER']" +
+                    "]/@android:targetActivity"
+                ),
+                runBundleManifestXPath(
+                    bundletool,
+                    aab,
+                    "/manifest/application/activity[" +
+                        "intent-filter/action[@android:name='android.intent.action.MAIN'] and " +
+                        "intent-filter/category[@android:name='android.intent.category.LAUNCHER']" +
+                    "]/@android:name"
+                ),
+                runBundleManifestXPath(
+                    bundletool,
+                    aab,
+                    "/manifest/application/activity-alias[" +
+                        "intent-filter/action[@android:name='android.intent.action.MAIN'] and " +
+                        "intent-filter/category[@android:name='android.intent.category.LAUNCHER']" +
+                    "]/@android:name"
+                )
+            );
+            if (!isBlank(activityName)) {
+                activityName = normalizeActivityName(packageName, activityName);
+            }
+            return new LaunchTarget(packageName, activityName == null ? "" : activityName);
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     private static LaunchTarget detectLaunchTarget(Path apks, Path aapt2, java.util.function.Consumer<String> logSink) throws Exception {
@@ -1890,8 +1954,15 @@ public final class AabToolGuiApp {
 
     private static void collectBasicInfoFromBundle(Path aab, LegacyInspectionReport report) {
         try {
+            LaunchTarget launchTarget = detectLaunchTargetFromBundle(aab);
+            if (launchTarget != null) {
+                report.setPackageName(launchTarget.packageName);
+                report.setLaunchableActivity(launchTarget.launchableActivity);
+            }
             Path bundletool = resolveBundletool("");
-            report.setPackageName(runBundleManifestXPath(bundletool, aab, "/manifest/@package"));
+            if (launchTarget == null || isBlank(launchTarget.packageName)) {
+                report.setPackageName(runBundleManifestXPath(bundletool, aab, "/manifest/@package"));
+            }
             report.setVersionCode(runBundleManifestXPath(bundletool, aab, "/manifest/@android:versionCode"));
             report.setVersionName(runBundleManifestXPath(bundletool, aab, "/manifest/@android:versionName"));
             report.setMinSdkVersion(runBundleManifestXPath(bundletool, aab, "/manifest/uses-sdk/@android:minSdkVersion"));
