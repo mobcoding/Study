@@ -88,7 +88,11 @@ public final class AabToolGuiApp {
     private static final Pattern APPLICATION_LABEL_RESOURCE_PATTERN = Pattern.compile("android:label\\(0x01010001\\)=@0x([0-9a-fA-F]+)");
     private static final Pattern RESOURCE_HEADER_PATTERN = Pattern.compile("^\\s*resource\\s+0x([0-9a-fA-F]+)\\b");
     private static final Pattern RESOURCE_LOCALE_VALUE_PATTERN = Pattern.compile("^\\s*\\(([^)]*)\\)\\s+\"");
-    private static final Set<String> OBFUSCATION_PACKAGE_IGNORES = Set.of("google", "adjust", "firebase", "facebook", "androidx");
+    private static final Set<String> OBFUSCATION_PACKAGE_IGNORES = Set.of(
+        "google", "adjust", "firebase", "facebook", "androidx",
+        "kotlin", "kotlinx", "dagger", "okhttp3", "okio", "retrofit2",
+        "javax", "android"
+    );
     private static final Set<String> GENERIC_SCAN_SKIPPED_EXTENSIONS = Set.of(
         ".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".heic",
         ".mp3", ".ogg", ".wav", ".aac", ".flac",
@@ -234,6 +238,8 @@ public final class AabToolGuiApp {
         private int logCount;
         private int totalClassCount;
         private int shortClassCount;
+        private int appPackageClassCount;
+        private int shortAppPackageClassCount;
         private int totalResourceCount;
         private int shortResourceCount;
         private boolean bundleMetadataPresent;
@@ -350,8 +356,7 @@ public final class AabToolGuiApp {
             if (segments.length == 0) {
                 return;
             }
-            String first = segments[0].toLowerCase(Locale.ROOT);
-            if (OBFUSCATION_PACKAGE_IGNORES.contains(first)) {
+            if (containsIgnoredPackageSegment(segments)) {
                 return;
             }
             String simpleName = segments[segments.length - 1];
@@ -363,8 +368,15 @@ public final class AabToolGuiApp {
                 return;
             }
             totalClassCount++;
-            if (simpleName.length() <= 2) {
+            boolean shortName = simpleName.length() <= 2;
+            if (shortName) {
                 shortClassCount++;
+            }
+            if (belongsToAppPackage(body)) {
+                appPackageClassCount++;
+                if (shortName) {
+                    shortAppPackageClassCount++;
+                }
             }
         }
 
@@ -388,6 +400,31 @@ public final class AabToolGuiApp {
             return totalResourceCount > 0 && shortResourceCount * 2 > totalResourceCount;
         }
 
+        private boolean isLikelyCodeObfuscated() {
+            if (appPackageClassCount >= 8) {
+                return shortAppPackageClassCount * 10 >= appPackageClassCount * 3;
+            }
+            return totalClassCount > 0 && shortClassCount * 2 > totalClassCount;
+        }
+
+        private boolean containsIgnoredPackageSegment(String[] segments) {
+            for (int i = 0; i < segments.length - 1; i++) {
+                String segment = segments[i];
+                if (segment != null && OBFUSCATION_PACKAGE_IGNORES.contains(segment.toLowerCase(Locale.ROOT))) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private boolean belongsToAppPackage(String classBody) {
+            if (isBlank(packageName) || isBlank(classBody)) {
+                return false;
+            }
+            String appPath = packageName.replace('.', '/');
+            return classBody.equals(appPath) || classBody.startsWith(appPath + "/");
+        }
+
         private void logTo(java.util.function.Consumer<String> logSink) {
             logSink.accept("静态检查结果：");
             logSink.accept("  APK 分包：" + (apkNames.isEmpty() ? "未找到" : String.join(", ", apkNames)));
@@ -395,7 +432,7 @@ public final class AabToolGuiApp {
             logSink.accept("1. AdMob 配置相关");
             emitAdmobSection(logSink);
 
-            logSink.accept("2. StringFog/AabResGuard/代码混淆\"");
+            logSink.accept("2. APK混淆\"");
             logSink.accept("  StringFog：" + (stringFogCount > 0 ? "已启用" : "未发现"));
             logSink.accept("  代码混淆：" + codeObfuscationStatus());
             logSink.accept("  AabResGuard：" + (aabResGuardCount > 0 ? "已启用" : "未发现"));
@@ -433,7 +470,7 @@ public final class AabToolGuiApp {
             logSink.accept("2. AdMob 配置相关");
             emitReadableAdmobSection(logSink);
 
-            logSink.accept("3. StringFog/AabResGuard/代码混淆");
+            logSink.accept("3. APK混淆");
             logSink.accept("  StringFog：" + (stringFogCount > 0 ? "已启用" : "未发现"));
             logSink.accept("  代码混淆：" + readableCodeObfuscationStatus());
             logSink.accept("  AabResGuard：" + (aabResGuardCount > 0 ? "已启用" : "未发现"));
@@ -487,7 +524,7 @@ public final class AabToolGuiApp {
             if (totalClassCount <= 0) {
                 return "无法判断";
             }
-            return shortClassCount * 2 > totalClassCount ? "已启用" : "不明显";
+            return isLikelyCodeObfuscated() ? "已启用" : "不明显";
         }
 
         private String debugStatus() {
@@ -501,7 +538,7 @@ public final class AabToolGuiApp {
             if (totalClassCount <= 0) {
                 return "无法判断";
             }
-            return shortClassCount * 2 > totalClassCount ? "已启用" : "未明显启用";
+            return isLikelyCodeObfuscated() ? "已启用" : "未明显启用";
         }
 
         private String readableDebugStatus() {
