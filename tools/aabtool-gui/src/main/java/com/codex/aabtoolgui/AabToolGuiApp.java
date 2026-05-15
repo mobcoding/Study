@@ -20,12 +20,15 @@ import javax.swing.SwingWorker;
 import javax.swing.TransferHandler;
 import javax.swing.UIManager;
 import java.awt.BorderLayout;
+import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.awt.datatransfer.DataFlavor;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -55,6 +58,7 @@ import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import javax.xml.parsers.DocumentBuilderFactory;
+import javax.swing.text.BadLocationException;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
@@ -96,6 +100,7 @@ public final class AabToolGuiApp {
         0x4f, 2,
         0xd8, 2
     );
+    private static final int GUI_CHINESE_PREVIEW_LIMIT = 20;
     private static final int MAX_SAMPLE_TEXT = 120;
     private static final int MAX_GENERIC_SCAN_BYTES = 4 * 1024 * 1024;
 
@@ -650,18 +655,21 @@ public final class AabToolGuiApp {
         private final JTextField keyAliasField = new JTextField(48);
         private final JPasswordField keyPasswordField = new JPasswordField(48);
         private final JComboBox<InstallMode> modeBox = new JComboBox<>(InstallMode.values());
-        private final JCheckBox runLegacyChecksBox = new JCheckBox("Run legacy checks", true);
-        private final JCheckBox installAfterBuildBox = new JCheckBox("Install after build", true);
-        private final JCheckBox autoLaunchAfterInstallBox = new JCheckBox("Auto launch after install", true);
-        private final JCheckBox autoUninstallOnSignatureMismatchBox = new JCheckBox("Auto uninstall on signature mismatch", false);
-        private final JCheckBox allowDowngradeBox = new JCheckBox("Allow downgrade", false);
-        private final JCheckBox grantRuntimePermissionsBox = new JCheckBox("Grant runtime permissions", true);
-        private final JButton refreshDevicesButton = new JButton("Refresh");
-        private final JButton advancedToggleButton = new JButton("Show advanced options");
-        private final JButton startButton = new JButton("Start");
+        private final JCheckBox runLegacyChecksBox = new JCheckBox("静态检查", true);
+        private final JCheckBox installAfterBuildBox = new JCheckBox("构建后安装", true);
+        private final JCheckBox autoLaunchAfterInstallBox = new JCheckBox("安装后自动启动", true);
+        private final JCheckBox autoUninstallOnSignatureMismatchBox = new JCheckBox("签名冲突时自动卸载重试", false);
+        private final JCheckBox allowDowngradeBox = new JCheckBox("允许降级安装", false);
+        private final JCheckBox grantRuntimePermissionsBox = new JCheckBox("自动授权运行时权限", false);
+        private final JButton refreshDevicesButton = new JButton("刷新");
+        private final JButton advancedToggleButton = new JButton("显示高级选项");
+        private final JButton startButton = new JButton("开始");
         private final JTextArea logArea = new JTextArea(26, 88);
         private final JPanel advancedPanel = new JPanel(new GridBagLayout());
+        private final List<String> rawLogLines = new ArrayList<>();
         private boolean advancedVisible;
+        private boolean chineseExpanded;
+        private RenderedLog renderedLog = RenderedLog.empty();
 
         private MainFrame() {
             super(APP_NAME);
@@ -685,9 +693,9 @@ public final class AabToolGuiApp {
 
             add(root, BorderLayout.CENTER);
             pack();
-            setSize(new Dimension(1020, 760));
+            setSize(new Dimension(1280, 720));
             setLocationRelativeTo(null);
-            setMinimumSize(new Dimension(920, 680));
+            setMinimumSize(new Dimension(1024, 576));
         }
 
         private JPanel buildFormPanel() {
@@ -699,8 +707,8 @@ public final class AabToolGuiApp {
             c.fill = GridBagConstraints.HORIZONTAL;
 
             int row = 0;
-            row = addFieldRow(basicPanel, c, row, "AAB file", aabField, browseFileButton(aabField, false));
-            row = addFieldRow(basicPanel, c, row, "Output .apks", outputField, browseSaveButton(outputField));
+            row = addFieldRow(basicPanel, c, row, "AAB 文件", aabField, browseFileButton(aabField, false));
+            row = addFieldRow(basicPanel, c, row, "输出 .apks", outputField, browseSaveButton(outputField));
             row = addDeviceRow(basicPanel, c, row);
             addModeRow(basicPanel, c, row);
 
@@ -722,12 +730,15 @@ public final class AabToolGuiApp {
             c.fill = GridBagConstraints.HORIZONTAL;
 
             int row = 0;
-            row = addFieldRow(advancedPanel, c, row, "ADB path", adbField, browseFileButton(adbField, false));
-            row = addFieldRow(advancedPanel, c, row, "AAPT2 path (optional)", aapt2Field, browseFileButton(aapt2Field, false));
-            row = addFieldRow(advancedPanel, c, row, "Keystore (optional)", keystoreField, browseFileButton(keystoreField, false));
-            row = addPasswordRow(advancedPanel, c, row, "Keystore password", keystorePasswordField);
-            row = addFieldRow(advancedPanel, c, row, "Key alias", keyAliasField, null);
-            addPasswordRow(advancedPanel, c, row, "Key password", keyPasswordField);
+            row = addFieldRow(advancedPanel, c, row, "ADB 路径", adbField, browseFileButton(adbField, false));
+            row = addFieldRow(advancedPanel, c, row, "AAPT2 路径（可选）", aapt2Field, browseFileButton(aapt2Field, false));
+            row = addFieldRow(advancedPanel, c, row, "签名文件（可选）", keystoreField, browseFileButton(keystoreField, false));
+            row = addPasswordRow(advancedPanel, c, row, "签名密码", keystorePasswordField);
+            row = addFieldRow(advancedPanel, c, row, "签名别名", keyAliasField, null);
+            row = addPasswordRow(advancedPanel, c, row, "密钥密码", keyPasswordField);
+            row = addCheckBoxRow(advancedPanel, c, row, "构建选项", runLegacyChecksBox, installAfterBuildBox);
+            row = addCheckBoxRow(advancedPanel, c, row, "安装选项", autoLaunchAfterInstallBox, autoUninstallOnSignatureMismatchBox);
+            addCheckBoxRow(advancedPanel, c, row, "权限选项", allowDowngradeBox, grantRuntimePermissionsBox);
 
             advancedPanel.setVisible(false);
 
@@ -739,7 +750,7 @@ public final class AabToolGuiApp {
         private void toggleAdvancedOptions() {
             advancedVisible = !advancedVisible;
             advancedPanel.setVisible(advancedVisible);
-            advancedToggleButton.setText(advancedVisible ? "Hide advanced options" : "Show advanced options");
+            advancedToggleButton.setText(advancedVisible ? "隐藏高级选项" : "显示高级选项");
             revalidate();
             repaint();
         }
@@ -747,8 +758,21 @@ public final class AabToolGuiApp {
         private JPanel buildLogPanel() {
             logArea.setEditable(false);
             logArea.setLineWrap(false);
+            MouseAdapter logMouseAdapter = new MouseAdapter() {
+                @Override
+                public void mouseClicked(MouseEvent e) {
+                    handleLogAreaClick(e);
+                }
+
+                @Override
+                public void mouseMoved(MouseEvent e) {
+                    updateLogCursor(e);
+                }
+            };
+            logArea.addMouseListener(logMouseAdapter);
+            logArea.addMouseMotionListener(logMouseAdapter);
             JScrollPane scrollPane = new JScrollPane(logArea);
-            scrollPane.setBorder(BorderFactory.createTitledBorder("Logs"));
+            scrollPane.setBorder(BorderFactory.createTitledBorder("日志"));
 
             JPanel panel = new JPanel(new BorderLayout());
             panel.add(scrollPane, BorderLayout.CENTER);
@@ -770,8 +794,8 @@ public final class AabToolGuiApp {
 
             JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
             startButton.addActionListener(e -> startExecution());
-            JButton clearButton = new JButton("Clear logs");
-            clearButton.addActionListener(e -> logArea.setText(""));
+            JButton clearButton = new JButton("清空日志");
+            clearButton.addActionListener(e -> resetLogArea());
             buttonPanel.add(clearButton);
             buttonPanel.add(startButton);
 
@@ -816,7 +840,7 @@ public final class AabToolGuiApp {
             c.gridy = row;
             c.gridx = 0;
             c.weightx = 0;
-            panel.add(new JLabel("Device ID (optional):"), c);
+            panel.add(new JLabel("设备 ID（可选）:"), c);
 
             JPanel devicePanel = new JPanel(new BorderLayout(8, 0));
             devicePanel.add(deviceIdBox, BorderLayout.CENTER);
@@ -837,16 +861,27 @@ public final class AabToolGuiApp {
             c.gridy = row;
             c.gridx = 0;
             c.weightx = 0;
-            panel.add(new JLabel("Install mode:"), c);
+            panel.add(new JLabel("安装模式:"), c);
+
+            c.gridx = 1;
+            c.weightx = 1;
+            panel.add(modeBox, c);
+
+            c.gridx = 2;
+            c.weightx = 0;
+            panel.add(Box.createHorizontalStrut(1), c);
+            return row + 1;
+        }
+
+        private int addCheckBoxRow(JPanel panel, GridBagConstraints c, int row, String label, JCheckBox first, JCheckBox second) {
+            c.gridy = row;
+            c.gridx = 0;
+            c.weightx = 0;
+            panel.add(new JLabel(label + ":"), c);
 
             JPanel options = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-            options.add(modeBox);
-            options.add(runLegacyChecksBox);
-            options.add(installAfterBuildBox);
-            options.add(autoLaunchAfterInstallBox);
-            options.add(autoUninstallOnSignatureMismatchBox);
-            options.add(allowDowngradeBox);
-            options.add(grantRuntimePermissionsBox);
+            options.add(first);
+            options.add(second);
 
             c.gridx = 1;
             c.weightx = 1;
@@ -859,7 +894,7 @@ public final class AabToolGuiApp {
         }
 
         private JButton browseFileButton(JTextField target, boolean directoriesOnly) {
-            JButton button = new JButton("Browse");
+            JButton button = new JButton("浏览");
             button.addActionListener(e -> {
                 JFileChooser chooser = new JFileChooser();
                 chooser.setFileSelectionMode(directoriesOnly ? JFileChooser.DIRECTORIES_ONLY : JFileChooser.FILES_ONLY);
@@ -877,7 +912,7 @@ public final class AabToolGuiApp {
         }
 
         private JButton browseSaveButton(JTextField target) {
-            JButton button = new JButton("Browse");
+            JButton button = new JButton("浏览");
             button.addActionListener(e -> {
                 JFileChooser chooser = new JFileChooser();
                 chooser.setSelectedFile(target.getText().isBlank() ? null : Paths.get(target.getText()).toFile());
@@ -921,15 +956,15 @@ public final class AabToolGuiApp {
                         if (error != null) {
                             JOptionPane.showMessageDialog(
                                 MainFrame.this,
-                                "Failed to refresh devices: " + error.getMessage(),
-                                "Refresh failed",
+                                "刷新设备失败：" + error.getMessage(),
+                                "刷新失败",
                                 JOptionPane.WARNING_MESSAGE
                             );
                         } else if (devices.isEmpty()) {
                             JOptionPane.showMessageDialog(
                                 MainFrame.this,
-                                "No online Android devices were found.",
-                                "No devices",
+                                "未发现在线 Android 设备。",
+                                "没有设备",
                                 JOptionPane.INFORMATION_MESSAGE
                             );
                         }
@@ -963,7 +998,7 @@ public final class AabToolGuiApp {
         }
 
         private void installDropSupport() {
-            aabField.setToolTipText("Drop a .aab file here or click Browse.");
+            aabField.setToolTipText("可将 .aab 文件拖到这里，或点击“浏览”。");
             aabField.setTransferHandler(new TransferHandler() {
                 @Override
                 public boolean canImport(TransferSupport support) {
@@ -993,8 +1028,8 @@ public final class AabToolGuiApp {
                         if (!dropped.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".aab")) {
                             JOptionPane.showMessageDialog(
                                 MainFrame.this,
-                                "Please drop a .aab file.",
-                                "Unsupported file",
+                                "请拖入 .aab 文件。",
+                                "文件不支持",
                                 JOptionPane.WARNING_MESSAGE
                             );
                             return false;
@@ -1004,8 +1039,8 @@ public final class AabToolGuiApp {
                     } catch (Exception e) {
                         JOptionPane.showMessageDialog(
                             MainFrame.this,
-                            "Failed to import dropped file: " + e.getMessage(),
-                            "Drop failed",
+                            "导入拖拽文件失败：" + e.getMessage(),
+                            "导入失败",
                             JOptionPane.ERROR_MESSAGE
                         );
                         return false;
@@ -1036,7 +1071,7 @@ public final class AabToolGuiApp {
             autoLaunchAfterInstallBox.setSelected(settings.getBoolean("autoLaunchAfterInstall", true));
             autoUninstallOnSignatureMismatchBox.setSelected(settings.getBoolean("autoUninstallOnSignatureMismatch", false));
             allowDowngradeBox.setSelected(settings.getBoolean("allowDowngrade", false));
-            grantRuntimePermissionsBox.setSelected(settings.getBoolean("grantRuntimePermissions", true));
+            grantRuntimePermissionsBox.setSelected(settings.getBoolean("grantRuntimePermissions", false));
         }
 
         private void saveSettings(ToolConfig config) {
@@ -1065,7 +1100,7 @@ public final class AabToolGuiApp {
             }
             saveSettings(config);
             startButton.setEnabled(false);
-            logArea.setText("");
+            resetLogArea();
 
             new SwingWorker<ExecutionResult, String>() {
                 @Override
@@ -1094,11 +1129,11 @@ public final class AabToolGuiApp {
                         JOptionPane.showMessageDialog(
                             MainFrame.this,
                             result.message,
-                            result.success ? "Success" : "Failed",
+                            result.success ? "成功" : "失败",
                             result.success ? JOptionPane.INFORMATION_MESSAGE : JOptionPane.ERROR_MESSAGE
                         );
                     } catch (Exception e) {
-                        appendLog("Unexpected GUI error: " + e.getMessage());
+                        appendLog("界面异常：" + e.getMessage());
                     }
                 }
             }.execute();
@@ -1125,7 +1160,7 @@ public final class AabToolGuiApp {
             config.grantRuntimePermissions = grantRuntimePermissionsBox.isSelected();
 
             if (config.aabPath.isBlank()) {
-                JOptionPane.showMessageDialog(this, "AAB file is required.", "Missing field", JOptionPane.WARNING_MESSAGE);
+                JOptionPane.showMessageDialog(this, "必须选择 AAB 文件。", "缺少必填项", JOptionPane.WARNING_MESSAGE);
                 return null;
             }
             if (config.outputPath.isBlank()) {
@@ -1135,10 +1170,126 @@ public final class AabToolGuiApp {
             return config;
         }
 
+        private void resetLogArea() {
+            rawLogLines.clear();
+            chineseExpanded = false;
+            renderLogArea();
+        }
+
         private void appendLog(String line) {
-            logArea.append(line);
-            logArea.append(System.lineSeparator());
+            rawLogLines.add(line);
+            renderLogArea();
+        }
+
+        private void renderLogArea() {
+            renderedLog = buildRenderedLog();
+            StringBuilder builder = new StringBuilder();
+            for (String line : renderedLog.lines) {
+                builder.append(line).append(System.lineSeparator());
+            }
+            logArea.setText(builder.toString());
             logArea.setCaretPosition(logArea.getDocument().getLength());
+            logArea.setCursor(Cursor.getDefaultCursor());
+        }
+
+        private RenderedLog buildRenderedLog() {
+            List<String> lines = new ArrayList<>();
+            int toggleLineIndex = -1;
+            int index = 0;
+            while (index < rawLogLines.size()) {
+                String line = rawLogLines.get(index);
+                if (!isChineseSectionHeader(line)) {
+                    lines.add(line);
+                    index++;
+                    continue;
+                }
+
+                lines.add(line);
+                index++;
+                List<String> sectionLines = new ArrayList<>();
+                while (index < rawLogLines.size() && !isTopLevelSectionHeader(rawLogLines.get(index))) {
+                    sectionLines.add(rawLogLines.get(index));
+                    index++;
+                }
+
+                int chineseLineCount = 0;
+                int hiddenCount = 0;
+                for (String sectionLine : sectionLines) {
+                    if (!isChineseSampleLine(sectionLine)) {
+                        lines.add(sectionLine);
+                        continue;
+                    }
+                    chineseLineCount++;
+                    if (chineseExpanded || chineseLineCount <= GUI_CHINESE_PREVIEW_LIMIT) {
+                        lines.add(sectionLine);
+                    } else {
+                        hiddenCount++;
+                    }
+                }
+
+                if (hiddenCount > 0) {
+                    toggleLineIndex = lines.size();
+                    lines.add("  ... 点击展开全部（已省略 " + hiddenCount + " 条）");
+                } else if (chineseExpanded && chineseLineCount > GUI_CHINESE_PREVIEW_LIMIT) {
+                    toggleLineIndex = lines.size();
+                    lines.add("  ... 点击收起");
+                }
+            }
+            return new RenderedLog(lines, toggleLineIndex);
+        }
+
+        private void handleLogAreaClick(MouseEvent event) {
+            int lineIndex = resolveLogLineIndex(event);
+            if (lineIndex < 0 || lineIndex != renderedLog.toggleLineIndex) {
+                return;
+            }
+            chineseExpanded = !chineseExpanded;
+            renderLogArea();
+        }
+
+        private void updateLogCursor(MouseEvent event) {
+            int lineIndex = resolveLogLineIndex(event);
+            logArea.setCursor(lineIndex >= 0 && lineIndex == renderedLog.toggleLineIndex
+                ? Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+                : Cursor.getDefaultCursor());
+        }
+
+        private int resolveLogLineIndex(MouseEvent event) {
+            int offset = logArea.viewToModel2D(event.getPoint());
+            if (offset < 0) {
+                return -1;
+            }
+            try {
+                return logArea.getLineOfOffset(offset);
+            } catch (BadLocationException ignored) {
+                return -1;
+            }
+        }
+
+        private static boolean isChineseSectionHeader(String line) {
+            return line != null && line.matches("^\\d+\\.\\s+中文字符串相关$");
+        }
+
+        private static boolean isTopLevelSectionHeader(String line) {
+            return line != null && line.matches("^\\d+\\.\\s+.+$");
+        }
+
+        private static boolean isChineseSampleLine(String line) {
+            return line != null && line.startsWith("  - ");
+        }
+
+        private static final class RenderedLog {
+            private final List<String> lines;
+            private final int toggleLineIndex;
+
+            private RenderedLog(List<String> lines, int toggleLineIndex) {
+                this.lines = lines;
+                this.toggleLineIndex = toggleLineIndex;
+            }
+
+            private static RenderedLog empty() {
+                return new RenderedLog(List.of(), -1);
+            }
         }
     }
 
@@ -2643,7 +2794,7 @@ public final class AabToolGuiApp {
         config.mode = InstallMode.CONNECTED_DEVICE;
         config.installAfterBuild = true;
         config.allowDowngrade = false;
-        config.grantRuntimePermissions = true;
+        config.grantRuntimePermissions = false;
         config.runLegacyChecks = true;
         config.autoLaunchAfterInstall = true;
         config.autoUninstallOnSignatureMismatch = false;
