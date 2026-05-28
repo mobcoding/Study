@@ -31,6 +31,7 @@ import java.awt.datatransfer.DataFlavor;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.geom.Rectangle2D;
+import java.io.File;
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -84,6 +85,9 @@ public final class AabToolGuiApp {
     private static final Pattern MIN_SDK_PATTERN = Pattern.compile("minSdkVersion:'([^']+)'");
     private static final Pattern TARGET_SDK_PATTERN = Pattern.compile("targetSdkVersion:'([^']+)'");
     private static final Pattern USES_PERMISSION_PATTERN = Pattern.compile("uses-permission(?:-sdk-\\d+)?:\\s+name='([^']+)'");
+    private static final Pattern BUNDLE_MANIFEST_PERMISSION_PATTERN = Pattern.compile("<uses-permission(?:-sdk-[^\\s>]+)?\\b[^>]*android:name=\"([^\"]+)\"");
+    private static final Pattern BUNDLE_RESOURCE_LOCALE_PATTERN = Pattern.compile("locale:\\s+\"([^\"]+)\"");
+    private static final Pattern BUNDLE_RESOURCE_STRING_PATTERN = Pattern.compile("(?:locale:\\s+\"([^\"]+)\"|\\(default\\))\\s+-\\s+\\[STR\\]\\s+\"(.*)\"");
     private static final Pattern DEBUGGABLE_XMLTREE_PATTERN = Pattern.compile("android:debuggable\\(0x0101000f\\)=\\((?:type 0x12|type 0x10)\\)0x([0-9a-fA-F]+)");
     private static final Pattern APPLICATION_LABEL_RESOURCE_PATTERN = Pattern.compile("android:label\\(0x01010001\\)=@0x([0-9a-fA-F]+)");
     private static final Pattern RESOURCE_HEADER_PATTERN = Pattern.compile("^\\s*resource\\s+0x([0-9a-fA-F]+)\\b");
@@ -111,6 +115,7 @@ public final class AabToolGuiApp {
     private static final int GUI_CHINESE_PREVIEW_LIMIT = GUI_SECTION_PREVIEW_LIMIT;
     private static final int MAX_SAMPLE_TEXT = 120;
     private static final int MAX_GENERIC_SCAN_BYTES = 4 * 1024 * 1024;
+    private static volatile Path preferredJavaBinary;
 
     private AabToolGuiApp() {
     }
@@ -265,12 +270,6 @@ public final class AabToolGuiApp {
             addSample(chineseSamples, source + " -> " + abbreviate(normalized));
         }
 
-        private void clearChinese() {
-            chineseKeys.clear();
-            chineseSamples.clear();
-            chineseCount = 0;
-        }
-
         private void addAdmobAppId(String sample) {
             addSample(admobAppIds, sample);
         }
@@ -306,16 +305,6 @@ public final class AabToolGuiApp {
                 return;
             }
             locales.add(locale);
-        }
-
-        private void replaceLocales(Set<String> locales) {
-            this.locales.clear();
-            if (locales == null) {
-                return;
-            }
-            for (String locale : locales) {
-                addLocale(locale);
-            }
         }
 
         private void setDebuggable(boolean debuggable) {
@@ -969,7 +958,26 @@ public final class AabToolGuiApp {
         private void refreshDeviceChoices(boolean showFeedback) {
             refreshDevicesButton.setEnabled(false);
             String currentValue = getDeviceSelection();
-            String adbArg = adbField.getText().trim().isBlank() ? "adb" : adbField.getText().trim();
+            String adbInput = adbField.getText().trim();
+            final String adbArg;
+            try {
+                adbArg = resolveAdb(adbInput);
+                if (shouldRefreshDisplayedAdbPath(adbInput, adbArg)) {
+                    adbField.setText(adbArg);
+                }
+            } catch (Exception e) {
+                refreshDevicesButton.setEnabled(true);
+                applyDeviceChoices(currentValue, List.of());
+                if (showFeedback) {
+                    JOptionPane.showMessageDialog(
+                        MainFrame.this,
+                        "ADB refresh failed: " + e.getMessage(),
+                        "Refresh failed",
+                        JOptionPane.WARNING_MESSAGE
+                    );
+                }
+                return;
+            }
 
             new SwingWorker<List<String>, Void>() {
                 private Exception error;
@@ -1095,14 +1103,14 @@ public final class AabToolGuiApp {
             String normalized = aabPath.toAbsolutePath().normalize().toString();
             aabField.setText(normalized);
             if (outputField.getText().isBlank()) {
-                outputField.setText(deriveOutputPath(Paths.get(normalized), (InstallMode) Objects.requireNonNull(modeBox.getSelectedItem())).toString());
+                outputField.setText(deriveOutputPath(expandUserPath(normalized), (InstallMode) Objects.requireNonNull(modeBox.getSelectedItem())).toString());
             }
         }
 
         private void loadSettings() {
             aabField.setText(settings.get("aabPath", ""));
             outputField.setText(settings.get("outputPath", ""));
-            adbField.setText(settings.get("adbPath", "adb"));
+            adbField.setText(normalizeConfiguredAdbPath(settings.get("adbPath", "")));
             aapt2Field.setText(settings.get("aapt2Path", detectLatestAapt2Path()));
             deviceIdBox.setSelectedItem("");
             keystoreField.setText(settings.get("keystorePath", ""));
@@ -1120,7 +1128,7 @@ public final class AabToolGuiApp {
             settings.put("aabPath", config.aabPath);
             settings.put("outputPath", config.outputPath);
             settings.put("bundletoolPath", normalizeSavedBundletoolPath(config.bundletoolPath));
-            settings.put("adbPath", config.adbPath);
+            settings.put("adbPath", normalizeSavedAdbPath(config.adbPath));
             settings.put("aapt2Path", config.aapt2Path);
             settings.put("deviceId", config.deviceId);
             settings.put("keystorePath", config.keystorePath);
@@ -1206,7 +1214,7 @@ public final class AabToolGuiApp {
                 return null;
             }
             if (config.outputPath.isBlank()) {
-                config.outputPath = deriveOutputPath(Paths.get(config.aabPath), config.mode).toString();
+                config.outputPath = deriveOutputPath(expandUserPath(config.aabPath), config.mode).toString();
                 outputField.setText(config.outputPath);
             }
             return config;
@@ -1565,8 +1573,8 @@ public final class AabToolGuiApp {
     }
 
     private static ExecutionResult runWorkflow(ToolConfig config, java.util.function.Consumer<String> logSink) throws Exception {
-        Path aab = Paths.get(config.aabPath).toAbsolutePath().normalize();
-        Path output = Paths.get(config.outputPath).toAbsolutePath().normalize();
+        Path aab = expandUserPath(config.aabPath).toAbsolutePath().normalize();
+        Path output = expandUserPath(config.outputPath).toAbsolutePath().normalize();
         Path bundletool = resolveExistingFile(resolveBundletool(config.bundletoolPath), "bundletool JAR");
         Path aapt2 = resolveAapt2(config.aapt2Path);
 
@@ -1575,7 +1583,7 @@ public final class AabToolGuiApp {
         }
         Files.createDirectories(output.getParent());
 
-        String adbArg = config.adbPath.isBlank() ? "adb" : config.adbPath;
+        String adbArg = resolveAdb(config.adbPath);
         String resolvedDeviceId = resolveDeviceId(adbArg, config.mode, config.installAfterBuild, config.deviceId, logSink);
         Signing signing = resolveSigning(config, logSink);
         Path javaBin = resolveJavaBinary();
@@ -1596,6 +1604,7 @@ public final class AabToolGuiApp {
         if (!resolvedDeviceId.isBlank()) {
             logSink.accept("  设备 ID：" + resolvedDeviceId);
         }
+        logSink.accept("  Bundletool Java：" + javaBin);
         logSink.accept("  签名方式：" + signing.summary);
         logSink.accept("");
 
@@ -1603,6 +1612,7 @@ public final class AabToolGuiApp {
         StringBuilder buildOutput = new StringBuilder();
         List<String> buildCommand = new ArrayList<>();
         buildCommand.add(javaBin.toString());
+        addBundletoolJvmOptions(buildCommand);
         buildCommand.add("-jar");
         buildCommand.add(bundletool.toString());
         buildCommand.add("build-apks");
@@ -1621,15 +1631,12 @@ public final class AabToolGuiApp {
         if (aapt2 != null) {
             buildCommand.add("--aapt2=" + aapt2);
         }
-        if (!"adb".equalsIgnoreCase(adbArg)) {
-            buildCommand.add("--adb=" + adbArg);
-        }
         buildCommand.add("--ks=" + signing.keystore);
         buildCommand.add("--ks-pass=pass:" + signing.storePassword);
         buildCommand.add("--ks-key-alias=" + signing.keyAlias);
         buildCommand.add("--key-pass=pass:" + signing.keyPassword);
 
-        int buildExit = runCommand(buildCommand, buildOutput, logSink);
+        int buildExit = runBundletoolCommand(buildCommand, buildOutput, logSink, adbArg);
         if (buildExit != 0) {
             emitHints(buildOutput.toString(), logSink);
             return new ExecutionResult(false, "构建失败，请查看上方日志。");
@@ -1658,15 +1665,13 @@ public final class AabToolGuiApp {
         StringBuilder installOutput = new StringBuilder();
         List<String> installCommand = new ArrayList<>();
         installCommand.add(javaBin.toString());
+        addBundletoolJvmOptions(installCommand);
         installCommand.add("-jar");
         installCommand.add(bundletool.toString());
         installCommand.add("install-apks");
         installCommand.add("--apks=" + output);
         if (!resolvedDeviceId.isBlank()) {
             installCommand.add("--device-id=" + resolvedDeviceId);
-        }
-        if (!"adb".equalsIgnoreCase(adbArg)) {
-            installCommand.add("--adb=" + adbArg);
         }
         if (config.allowDowngrade) {
             installCommand.add("--allow-downgrade");
@@ -1675,7 +1680,7 @@ public final class AabToolGuiApp {
             installCommand.add("--grant-runtime-permissions");
         }
 
-        int installExit = runCommand(installCommand, installOutput, logSink);
+        int installExit = runBundletoolCommand(installCommand, installOutput, logSink, adbArg);
         if (installExit != 0
             && containsUpdateIncompatible(installOutput.toString())
             && config.autoUninstallOnSignatureMismatch
@@ -1685,7 +1690,7 @@ public final class AabToolGuiApp {
             boolean uninstallOk = uninstallPackage(launchTarget.packageName, adbArg, resolvedDeviceId, logSink);
             if (uninstallOk) {
                 installOutput.setLength(0);
-                installExit = runCommand(installCommand, installOutput, logSink);
+                installExit = runBundletoolCommand(installCommand, installOutput, logSink, adbArg);
             } else {
                 logSink.accept("自动卸载失败，已跳过重试安装。");
                 logSink.accept("");
@@ -1926,6 +1931,8 @@ public final class AabToolGuiApp {
         report.bundleMetadataPresent = containsBundleMetadata(aab);
         collectBasicInfoFromBundle(aab, report);
         collectAdmobAppIdFromBundle(aab, report);
+        collectDeclaredPermissionsFromBundle(aab, report);
+        LinkedHashSet<String> bundleLocales = collectBundleResourceSignals(aab, report);
 
         try (ZipInputStream apksZip = new ZipInputStream(Files.newInputStream(apks))) {
             ZipEntry apkSetEntry;
@@ -1946,9 +1953,57 @@ public final class AabToolGuiApp {
             inspectDeclaredPermissions(apks, aapt2, report);
         }
         inspectLegacyFeatureFlags(apks, report);
-        augmentWithNearbySourceChinese(aab, report);
         augmentWithNearbySourceLocales(aab, report);
+        if (report.locales.isEmpty()) {
+            for (String locale : bundleLocales) {
+                report.addLocale(locale);
+            }
+        }
         return report;
+    }
+
+    private static void collectDeclaredPermissionsFromBundle(Path aab, LegacyInspectionReport report) {
+        try {
+            Path bundletool = resolveBundletool("");
+            String manifest = runBundletoolQuietly(bundletool, List.of("dump", "manifest", "--bundle=" + aab));
+            Matcher matcher = BUNDLE_MANIFEST_PERMISSION_PATTERN.matcher(manifest);
+            while (matcher.find()) {
+                report.addPermission(matcher.group(1));
+            }
+        } catch (Exception ignored) {
+            // Keep permission reporting best-effort even if bundle manifest dump is unavailable.
+        }
+    }
+
+    private static LinkedHashSet<String> collectBundleResourceSignals(Path aab, LegacyInspectionReport report) {
+        LinkedHashSet<String> bundleLocales = new LinkedHashSet<>();
+        try {
+            Path bundletool = resolveBundletool("");
+            String output = runBundletoolQuietly(bundletool, List.of("dump", "resources", "--bundle=" + aab, "--values"));
+            for (String line : output.split("\\R")) {
+                Matcher localeMatcher = BUNDLE_RESOURCE_LOCALE_PATTERN.matcher(line);
+                while (localeMatcher.find()) {
+                    String locale = localeMatcher.group(1) == null ? "" : localeMatcher.group(1).trim();
+                    if (!isBlank(locale)) {
+                        bundleLocales.add(locale);
+                    }
+                }
+
+                Matcher stringMatcher = BUNDLE_RESOURCE_STRING_PATTERN.matcher(line.trim());
+                if (!stringMatcher.find()) {
+                    continue;
+                }
+                String locale = stringMatcher.group(1) == null ? "" : stringMatcher.group(1).trim();
+                String value = normalizeBundletoolStringValue(stringMatcher.group(2));
+                if (!isBlank(locale)) {
+                    bundleLocales.add(locale);
+                }
+                inspectReadableValue("bundle resources", value, report, false, false);
+            }
+        } catch (Exception ignored) {
+            // Keep resource reporting best-effort even if bundle resource dump is unavailable.
+        }
+        return bundleLocales;
     }
 
     private static void inspectDeclaredPermissions(Path apks, Path aapt2, LegacyInspectionReport report) throws IOException {
@@ -2026,15 +2081,25 @@ public final class AabToolGuiApp {
     }
 
     private static String runBundleManifestXPath(Path bundletool, Path aab, String xpath) throws IOException, InterruptedException {
-        return runCommandQuietly(List.of(
-            "java",
-            "-jar",
-            bundletool.toString(),
-            "dump",
-            "manifest",
-            "--bundle=" + aab,
-            "--xpath=" + xpath
-        )).trim();
+        return runBundletoolQuietly(
+            bundletool,
+            List.of(
+                "dump",
+                "manifest",
+                "--bundle=" + aab,
+                "--xpath=" + xpath
+            )
+        ).trim();
+    }
+
+    private static String runBundletoolQuietly(Path bundletool, List<String> args) throws IOException, InterruptedException {
+        List<String> command = new ArrayList<>();
+        command.add(resolveJavaBinary().toString());
+        addBundletoolJvmOptions(command);
+        command.add("-jar");
+        command.add(bundletool.toString());
+        command.addAll(args);
+        return runCommandQuietly(command, StandardCharsets.UTF_8, true);
     }
 
     private static void collectBasicInfoFromBadging(String output, LegacyInspectionReport report) {
@@ -2173,6 +2238,18 @@ public final class AabToolGuiApp {
             return "en";
         }
         return normalizeLocaleQualifier(trimmed);
+    }
+
+    private static String normalizeBundletoolStringValue(String rawValue) {
+        if (rawValue == null) {
+            return "";
+        }
+        return rawValue
+            .replace("\\n", "\n")
+            .replace("\\t", "\t")
+            .replace("\\\"", "\"")
+            .replace("\\\\", "\\")
+            .trim();
     }
 
 	    private static String normalizeSourceValuesDirectory(String directoryName) {
@@ -2605,9 +2682,6 @@ public final class AabToolGuiApp {
         if (lower.startsWith("assets/")) {
             return hasTextExtension(lower);
         }
-        if (lower.startsWith("res/raw/")) {
-            return hasTextExtension(lower);
-        }
         if (lower.startsWith("meta-inf/")) {
             return hasTextExtension(lower);
         }
@@ -2929,24 +3003,8 @@ public final class AabToolGuiApp {
             if (Files.isDirectory(resDir)) {
                 LinkedHashSet<String> sourceLocales = collectLocalesFromResDirectory(resDir);
                 if (!sourceLocales.isEmpty()) {
-                    report.replaceLocales(sourceLocales);
-                    return;
-                }
-            }
-            current = current.getParent();
-        }
-    }
-
-    private static void augmentWithNearbySourceChinese(Path aab, LegacyInspectionReport report) {
-        Path current = aab.toAbsolutePath().normalize().getParent();
-        for (int level = 0; level < 8 && current != null; level++) {
-            Path resDir = current.resolve("src").resolve("main").resolve("res");
-            if (Files.isDirectory(resDir)) {
-                List<SourceChineseEntry> sourceEntries = collectChineseFromResDirectory(resDir);
-                if (!sourceEntries.isEmpty()) {
-                    report.clearChinese();
-                    for (SourceChineseEntry entry : sourceEntries) {
-                        report.addChineseValue(entry.source, entry.value);
+                    for (String sourceLocale : sourceLocales) {
+                        report.addLocale(sourceLocale);
                     }
                     return;
                 }
@@ -3092,7 +3150,7 @@ public final class AabToolGuiApp {
                 config.mode = InstallMode.CONNECTED_DEVICE;
             }
             if (isBlank(config.outputPath)) {
-                config.outputPath = deriveOutputPath(Paths.get(config.aabPath), config.mode).toString();
+                config.outputPath = deriveOutputPath(expandUserPath(config.aabPath), config.mode).toString();
             }
             if (config.bundletoolPath == null) {
                 config.bundletoolPath = "";
@@ -3250,18 +3308,175 @@ public final class AabToolGuiApp {
     }
 
     private static Path resolveJavaBinary() {
-        Path javaHome = Paths.get(System.getProperty("java.home"));
-        String javaName = isWindows() ? "java.exe" : "java";
-        Path candidate = javaHome.resolve("bin").resolve(javaName);
-        if (Files.exists(candidate)) {
-            return candidate;
+        Path cached = preferredJavaBinary;
+        if (cached != null && Files.exists(cached)) {
+            return cached;
         }
-        return Paths.get("java");
+
+        LinkedHashSet<Path> candidates = new LinkedHashSet<>();
+        addJavaCandidate(candidates, Paths.get(System.getProperty("java.home", "")));
+
+        String javaHomeEnv = System.getenv("JAVA_HOME");
+        if (!isBlank(javaHomeEnv)) {
+            addJavaCandidate(candidates, expandUserPath(javaHomeEnv).toAbsolutePath().normalize());
+        }
+
+        collectSiblingJavaCandidates(candidates);
+        collectPlatformJavaCandidates(candidates);
+
+        Path selected = selectPreferredJavaBinary(candidates);
+        if (selected != null) {
+            preferredJavaBinary = selected;
+            return selected;
+        }
+        Path fallback = Paths.get(isWindows() ? "java.exe" : "java");
+        preferredJavaBinary = fallback;
+        return fallback;
+    }
+
+    private static void addJavaCandidate(Set<Path> candidates, Path javaHome) {
+        if (javaHome == null) {
+            return;
+        }
+        Path candidate = javaHome.resolve("bin").resolve(isWindows() ? "java.exe" : "java");
+        if (Files.isRegularFile(candidate)) {
+            candidates.add(candidate.toAbsolutePath().normalize());
+        }
+    }
+
+    private static void collectSiblingJavaCandidates(Set<Path> candidates) {
+        Path javaHome = Paths.get(System.getProperty("java.home", "")).toAbsolutePath().normalize();
+        Path current = javaHome;
+        for (int i = 0; i < 4 && current != null; i++) {
+            scanJavaHomesInDirectory(current.getParent(), candidates);
+            current = current.getParent();
+        }
+    }
+
+    private static void collectPlatformJavaCandidates(Set<Path> candidates) {
+        if (isMac()) {
+            addMacPreferredJavaHome(candidates, "21");
+            addMacPreferredJavaHome(candidates, "17");
+            scanJavaHomesInDirectory(Paths.get("/Library/Java/JavaVirtualMachines"), candidates);
+            return;
+        }
+
+        if (isWindows()) {
+            scanJavaHomesInDirectory(Paths.get("C:\\Program Files\\Java"), candidates);
+            scanJavaHomesInDirectory(Paths.get("D:\\Program Files\\Java"), candidates);
+            scanJavaHomesInDirectory(Paths.get("C:\\Program Files\\Eclipse Adoptium"), candidates);
+            scanJavaHomesInDirectory(Paths.get("D:\\Program Files\\Eclipse Adoptium"), candidates);
+        }
+    }
+
+    private static void addMacPreferredJavaHome(Set<Path> candidates, String versionPrefix) {
+        Path home = queryMacJavaHome(versionPrefix);
+        if (home != null) {
+            addJavaCandidate(candidates, home);
+        }
+    }
+
+    private static Path queryMacJavaHome(String versionPrefix) {
+        try {
+            String output = runCommandQuietly(
+                List.of("/usr/libexec/java_home", "-v", versionPrefix),
+                StandardCharsets.UTF_8,
+                false
+            ).trim();
+            if (output.isEmpty()) {
+                return null;
+            }
+            Path home = Paths.get(output);
+            return Files.isDirectory(home) ? home : null;
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private static void scanJavaHomesInDirectory(Path directory, Set<Path> candidates) {
+        if (directory == null || !Files.isDirectory(directory)) {
+            return;
+        }
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(directory)) {
+            for (Path child : stream) {
+                if (!Files.isDirectory(child)) {
+                    continue;
+                }
+                addJavaCandidate(candidates, child);
+                addJavaCandidate(candidates, child.resolve("Contents").resolve("Home"));
+            }
+        } catch (IOException ignored) {
+        }
+    }
+
+    private static Path selectPreferredJavaBinary(Set<Path> candidates) {
+        Path exact21 = null;
+        Path exact17 = null;
+        Path compatibleCurrent = null;
+        Path fallback = null;
+
+        for (Path candidate : candidates) {
+            Integer major = probeJavaMajorVersion(candidate);
+            if (major == null) {
+                if (fallback == null) {
+                    fallback = candidate;
+                }
+                continue;
+            }
+            if (major == 21 && exact21 == null) {
+                exact21 = candidate;
+            } else if (major == 17 && exact17 == null) {
+                exact17 = candidate;
+            } else if (major <= 21 && compatibleCurrent == null) {
+                compatibleCurrent = candidate;
+            }
+            if (fallback == null) {
+                fallback = candidate;
+            }
+        }
+
+        if (exact21 != null) {
+            return exact21;
+        }
+        if (exact17 != null) {
+            return exact17;
+        }
+        if (compatibleCurrent != null) {
+            return compatibleCurrent;
+        }
+        return fallback;
+    }
+
+    private static Integer probeJavaMajorVersion(Path javaBinary) {
+        try {
+            String output = runCommandQuietly(
+                List.of(javaBinary.toString(), "-version"),
+                StandardCharsets.UTF_8,
+                false
+            );
+            Matcher matcher = Pattern.compile("version\\s+\"(\\d+)(?:\\.(\\d+))?.*\"").matcher(output);
+            if (!matcher.find()) {
+                return null;
+            }
+            int major = Integer.parseInt(matcher.group(1));
+            if (major == 1 && matcher.group(2) != null) {
+                major = Integer.parseInt(matcher.group(2));
+            }
+            return major;
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private static void addBundletoolJvmOptions(List<String> command) {
+        command.add("-Dfile.encoding=UTF-8");
+        command.add("-Dsun.stdout.encoding=UTF-8");
+        command.add("-Dsun.stderr.encoding=UTF-8");
     }
 
     private static Path resolveBundletool(String rawPath) {
         if (rawPath != null && !rawPath.isBlank()) {
-            Path explicit = Paths.get(rawPath).toAbsolutePath().normalize();
+            Path explicit = expandUserPath(rawPath).toAbsolutePath().normalize();
             if (Files.exists(explicit)) {
                 return explicit;
             }
@@ -3282,7 +3497,7 @@ public final class AabToolGuiApp {
         if (isBlank(rawPath)) {
             return "";
         }
-        Path explicit = Paths.get(rawPath).toAbsolutePath().normalize();
+        Path explicit = expandUserPath(rawPath).toAbsolutePath().normalize();
         if (!Files.exists(explicit)) {
             return "";
         }
@@ -3298,13 +3513,177 @@ public final class AabToolGuiApp {
 
     private static Path resolveAapt2(String rawPath) {
         if (!isBlank(rawPath)) {
-            return resolveExistingFile(Paths.get(rawPath), "AAPT2");
+            return resolveExistingFile(expandUserPath(rawPath).toAbsolutePath().normalize(), "AAPT2");
         }
         String detected = detectLatestAapt2Path();
         if (isBlank(detected)) {
             return null;
         }
         return resolveExistingFile(Paths.get(detected), "AAPT2");
+    }
+
+    private static String resolveAdb(String rawPath) {
+        if (!isDefaultAdbCommand(rawPath)) {
+            return resolveExistingFile(expandUserPath(rawPath).toAbsolutePath().normalize(), "ADB").toString();
+        }
+        String detected = detectAdbPath();
+        if (!isBlank(detected)) {
+            return detected;
+        }
+        return isWindows() ? "adb.exe" : "adb";
+    }
+
+    private static String detectAdbPathOrDefault() {
+        String detected = detectAdbPath();
+        if (!isBlank(detected)) {
+            return detected;
+        }
+        return isWindows() ? "adb.exe" : "adb";
+    }
+
+    private static String detectAdbPath() {
+        String executable = isWindows() ? "adb.exe" : "adb";
+        LinkedHashSet<Path> candidates = new LinkedHashSet<>();
+
+        addSdkToolCandidate(candidates, executable, "platform-tools");
+
+        Path homeDir = Paths.get(System.getProperty("user.home", ""));
+        if (!homeDir.toString().isBlank()) {
+            candidates.add(homeDir.resolve("Library").resolve("Android").resolve("sdk").resolve("platform-tools").resolve(executable));
+            candidates.add(homeDir.resolve("Android").resolve("Sdk").resolve("platform-tools").resolve(executable));
+        }
+        if (isMac()) {
+            candidates.add(Paths.get("/opt/homebrew/bin").resolve(executable));
+            candidates.add(Paths.get("/usr/local/bin").resolve(executable));
+        }
+
+        String fromLoginShell = detectCommandOnLoginShell(executable);
+        if (!isBlank(fromLoginShell)) {
+            candidates.add(Paths.get(fromLoginShell));
+        }
+
+        String fromPath = detectCommandOnPath(executable);
+        if (!isBlank(fromPath)) {
+            candidates.add(Paths.get(fromPath));
+        }
+
+        for (Path candidate : candidates) {
+            if (Files.exists(candidate) && Files.isRegularFile(candidate)) {
+                return candidate.toAbsolutePath().normalize().toString();
+            }
+        }
+        return "";
+    }
+
+    private static void addSdkToolCandidate(Set<Path> candidates, String executable, String toolDirName) {
+        String sdkRoot = firstNonBlank(
+            System.getenv("ANDROID_SDK_ROOT"),
+            System.getenv("ANDROID_HOME"),
+            readSdkDirFromLocalProperties()
+        );
+        if (isBlank(sdkRoot)) {
+            return;
+        }
+        candidates.add(Paths.get(sdkRoot).resolve(toolDirName).resolve(executable));
+    }
+
+    private static String detectCommandOnPath(String executable) {
+        List<String> command;
+        if (isWindows()) {
+            command = List.of("where", executable);
+        } else {
+            command = List.of("/usr/bin/which", executable);
+        }
+        try {
+            String output = runCommandQuietly(command);
+            for (String line : output.split("\\R")) {
+                String trimmed = line.trim();
+                if (!trimmed.isEmpty()) {
+                    return trimmed;
+                }
+            }
+        } catch (IOException | InterruptedException ignored) {
+        }
+        return "";
+    }
+
+    private static String detectCommandOnLoginShell(String executable) {
+        if (isWindows()) {
+            return "";
+        }
+
+        LinkedHashSet<Path> shells = new LinkedHashSet<>();
+        String shellEnv = System.getenv("SHELL");
+        if (!isBlank(shellEnv)) {
+            shells.add(Paths.get(shellEnv));
+        }
+        shells.add(Paths.get("/bin/zsh"));
+        shells.add(Paths.get("/bin/bash"));
+        shells.add(Paths.get("/bin/sh"));
+
+        for (Path shell : shells) {
+            if (!Files.isRegularFile(shell)) {
+                continue;
+            }
+            try {
+                String output = runCommandQuietly(List.of(shell.toString(), "-lc", "command -v " + executable + " 2>/dev/null"));
+                for (String line : output.split("\\R")) {
+                    String trimmed = line.trim();
+                    if (!trimmed.isEmpty()) {
+                        return trimmed;
+                    }
+                }
+            } catch (IOException | InterruptedException ignored) {
+            }
+        }
+        return "";
+    }
+
+    private static String buildAdbNotFoundMessage(String adbArg) {
+        StringBuilder message = new StringBuilder();
+        message.append("ADB was not found: ").append(adbArg);
+        message.append(System.lineSeparator());
+        if (isMac()) {
+            message.append("On macOS, GUI apps often do not inherit your shell PATH.").append(System.lineSeparator());
+            message.append("Set the ADB path explicitly, or install Android SDK Platform-Tools and use a path like:").append(System.lineSeparator());
+            message.append("~/Library/Android/sdk/platform-tools/adb");
+        } else {
+            message.append("Set the ADB path explicitly, or install Android SDK Platform-Tools.");
+        }
+        return message.toString();
+    }
+
+    private static boolean isDefaultAdbCommand(String rawPath) {
+        if (isBlank(rawPath)) {
+            return true;
+        }
+        String trimmed = rawPath.trim();
+        return "adb".equalsIgnoreCase(trimmed) || "adb.exe".equalsIgnoreCase(trimmed);
+    }
+
+    private static String normalizeConfiguredAdbPath(String rawPath) {
+        if (isDefaultAdbCommand(rawPath)) {
+            return detectAdbPathOrDefault();
+        }
+        return rawPath == null ? "" : rawPath.trim();
+    }
+
+    private static String normalizeSavedAdbPath(String rawPath) {
+        if (isDefaultAdbCommand(rawPath)) {
+            return "";
+        }
+        return rawPath == null ? "" : rawPath.trim();
+    }
+
+    private static boolean shouldRefreshDisplayedAdbPath(String rawPath, String resolvedAdbPath) {
+        if (isBlank(resolvedAdbPath)) {
+            return false;
+        }
+        if (isDefaultAdbCommand(rawPath)) {
+            return !resolvedAdbPath.equals(rawPath);
+        }
+        String trimmed = rawPath == null ? "" : rawPath.trim();
+        return trimmed.startsWith("~") && !resolvedAdbPath.equals(trimmed);
     }
 
     private static Path resolveExistingFile(Path path, String label) {
@@ -3351,7 +3730,12 @@ public final class AabToolGuiApp {
         List<String> command = new ArrayList<>();
         command.add(adbArg);
         command.add("devices");
-        int exit = runCommand(command, output, logSink);
+        int exit;
+        try {
+            exit = runCommand(command, output, logSink);
+        } catch (IOException e) {
+            throw new IllegalArgumentException(buildAdbNotFoundMessage(adbArg), e);
+        }
         if (exit != 0) {
             throw new IllegalArgumentException("Unable to query adb devices. Check ADB path.");
         }
@@ -3375,7 +3759,7 @@ public final class AabToolGuiApp {
             if (config.keystorePassword.isBlank() || config.keyAlias.isBlank() || config.keyPassword.isBlank()) {
                 throw new IllegalArgumentException("When keystore is set, keystore password, key alias and key password are all required.");
             }
-            Path keystore = resolveExistingFile(Paths.get(config.keystorePath), "Keystore");
+            Path keystore = resolveExistingFile(expandUserPath(config.keystorePath).toAbsolutePath().normalize(), "Keystore");
             return new Signing(keystore.toString(), config.keystorePassword, config.keyAlias, config.keyPassword, "自定义 keystore");
         }
 
@@ -3431,13 +3815,25 @@ public final class AabToolGuiApp {
         ProcessBuilder builder = new ProcessBuilder(command);
         builder.redirectErrorStream(true);
         Process process = builder.start();
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream(), Charset.defaultCharset()))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                output.append(line).append(System.lineSeparator());
-                logSink.accept(line);
-            }
-        }
+        readProcessOutput(process, output, logSink, Charset.defaultCharset(), false);
+        int exit = process.waitFor();
+        logSink.accept("退出码: " + exit);
+        logSink.accept("");
+        return exit;
+    }
+
+    private static int runBundletoolCommand(
+        List<String> command,
+        StringBuilder output,
+        java.util.function.Consumer<String> logSink,
+        String adbPath
+    ) throws IOException, InterruptedException {
+        logSink.accept("$ " + maskCommand(command));
+        ProcessBuilder builder = new ProcessBuilder(command);
+        builder.redirectErrorStream(true);
+        configureAdbEnvironment(builder, adbPath);
+        Process process = builder.start();
+        readProcessOutput(process, output, logSink, StandardCharsets.UTF_8, true);
         int exit = process.waitFor();
         logSink.accept("退出码: " + exit);
         logSink.accept("");
@@ -3445,21 +3841,85 @@ public final class AabToolGuiApp {
     }
 
     private static String runCommandQuietly(List<String> command) throws IOException, InterruptedException {
+        return runCommandQuietly(command, Charset.defaultCharset(), false);
+    }
+
+    private static String runCommandQuietly(List<String> command, Charset charset, boolean filterJvmNoise)
+        throws IOException, InterruptedException {
         ProcessBuilder builder = new ProcessBuilder(command);
         builder.redirectErrorStream(true);
         Process process = builder.start();
         StringBuilder output = new StringBuilder();
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream(), Charset.defaultCharset()))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                output.append(line).append(System.lineSeparator());
-            }
-        }
+        readProcessOutput(process, output, null, charset, filterJvmNoise);
         int exit = process.waitFor();
         if (exit != 0) {
             throw new IOException("Command failed with exit code " + exit);
         }
         return output.toString();
+    }
+
+    private static void readProcessOutput(
+        Process process,
+        StringBuilder output,
+        java.util.function.Consumer<String> logSink,
+        Charset charset,
+        boolean filterJvmNoise
+    ) throws IOException {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream(), charset))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (filterJvmNoise && isIgnorableJvmWarning(line)) {
+                    continue;
+                }
+                output.append(line).append(System.lineSeparator());
+                if (logSink != null) {
+                    logSink.accept(line);
+                }
+            }
+        }
+    }
+
+    private static boolean isIgnorableJvmWarning(String line) {
+        if (line == null) {
+            return false;
+        }
+        String trimmed = line.trim();
+        if (!trimmed.startsWith("WARNING:")) {
+            return false;
+        }
+        return trimmed.contains("terminally deprecated method")
+            || trimmed.contains("sun.misc.Unsafe")
+            || trimmed.contains("UnsafeUtil$MemoryAccessor")
+            || trimmed.contains("Please consider reporting this to the maintainers");
+    }
+
+    private static void configureAdbEnvironment(ProcessBuilder builder, String adbPath) {
+        if (isBlank(adbPath)) {
+            return;
+        }
+
+        try {
+            Path resolvedAdb = expandUserPath(adbPath).toAbsolutePath().normalize();
+            Path adbDir = resolvedAdb.getParent();
+            if (adbDir != null) {
+                Map<String, String> env = builder.environment();
+                String currentPath = env.getOrDefault("PATH", env.getOrDefault("Path", ""));
+                String adbDirText = adbDir.toString();
+                if (!currentPath.isBlank()) {
+                    env.put("PATH", adbDirText + File.pathSeparator + currentPath);
+                } else {
+                    env.put("PATH", adbDirText);
+                }
+
+                Path sdkRoot = adbDir.getParent();
+                if (sdkRoot != null && "platform-tools".equalsIgnoreCase(adbDir.getFileName().toString())) {
+                    String sdkRootText = sdkRoot.toString();
+                    env.put("ANDROID_HOME", sdkRootText);
+                    env.put("ANDROID_SDK_ROOT", sdkRootText);
+                }
+            }
+        } catch (Exception ignored) {
+        }
     }
 
     private static void emitHints(String output, java.util.function.Consumer<String> logSink) {
@@ -3643,6 +4103,20 @@ public final class AabToolGuiApp {
         return "";
     }
 
+    private static Path expandUserPath(String rawPath) {
+        if (rawPath == null) {
+            throw new IllegalArgumentException("Path is null");
+        }
+        String trimmed = rawPath.trim();
+        if (trimmed.equals("~")) {
+            return Paths.get(System.getProperty("user.home"));
+        }
+        if (trimmed.startsWith("~/") || trimmed.startsWith("~\\")) {
+            return Paths.get(System.getProperty("user.home")).resolve(trimmed.substring(2));
+        }
+        return Paths.get(trimmed);
+    }
+
     private static Path getAppDir() {
         try {
             CodeSource source = AabToolGuiApp.class.getProtectionDomain().getCodeSource();
@@ -3665,6 +4139,10 @@ public final class AabToolGuiApp {
 
     private static boolean isWindows() {
         return System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win");
+    }
+
+    private static boolean isMac() {
+        return System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("mac");
     }
 
     private static boolean isBlank(String value) {

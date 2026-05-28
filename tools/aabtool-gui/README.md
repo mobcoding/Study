@@ -57,3 +57,5 @@ Common options:
 - `--replace-incompatible` or the GUI checkbox will uninstall the existing app and retry once when `INSTALL_FAILED_UPDATE_INCOMPATIBLE` is detected.
 - Legacy checks are best-effort heuristics. StringFog may be reported either from APK markers or, when running inside a source checkout, from nearby Gradle wiring.
 - Leave keystore fields blank if you only need a temporary debug-signed install.
+- On macOS, `adb` is commonly located at `~/Library/Android/sdk/platform-tools/adb`.
+- The GUI now auto-detects `adb` from `ANDROID_SDK_ROOT`, `ANDROID_HOME`, `local.properties`, common SDK locations, shell PATH, or PATH inherited by the process, and passes that `adb` path into bundletool on macOS too.
