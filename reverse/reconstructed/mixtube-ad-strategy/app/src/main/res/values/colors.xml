@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="black">#ff000000</color>
+    <color name="white">#ffffffff</color>
+    <color name="main_text_color">#ffffffff</color>
+    <color name="main_small_text_color">#99ffffff</color>
+    <color name="full_native_cta">#ff5aeeee</color>
+    <color name="full_native_count_bg">#0a000000</color>
+    <color name="full_native_ad_badge">#ff86c0fc</color>
+    <color name="splash_progress_bg">#1fffffff</color>
+</resources>

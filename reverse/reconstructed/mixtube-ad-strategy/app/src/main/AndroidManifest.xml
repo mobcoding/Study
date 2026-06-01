@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="com.google.android.gms.permission.AD_ID" />
+    <application
+        android:name=".MixtubeRebuildApplication"
+        android:allowBackup="false"
+        android:label="Mixtube Ad Strategy Rebuild"
+        android:theme="@style/AppTheme">
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="@string/admob_test_app_id" />
+        <activity
+            android:name=".ToponSplashAdShowActivity"
+            android:exported="false"
+            android:theme="@style/AppTheme.Fullscreen" />
+        <activity
+            android:name=".FullNativeAdActivity"
+            android:exported="false"
+            android:theme="@style/AppTheme.Fullscreen" />
+        <activity
+            android:name=".AdWinInterActivity"
+            android:exported="false"
+            android:theme="@style/AppTheme.Fullscreen" />
+        <activity
+            android:name=".ReconstructedMediationAdActivity"
+            android:exported="false"
+            android:theme="@style/AppTheme.Fullscreen" />
+        <activity
+            android:name=".GoogleNativeAdActivity"
+            android:exported="false" />
+        <activity
+            android:name=".GoogleBannerAdActivity"
+            android:exported="false" />
+        <activity
+            android:name=".MainActivity"
+            android:exported="false" />
+        <activity
+            android:name=".SearchPageActivity"
+            android:exported="false" />
+        <activity
+            android:name=".PlayerPageActivity"
+            android:exported="false" />
+        <activity
+            android:name=".PlaylistImportActivity"
+            android:exported="false" />
+        <activity
+            android:name=".PlaylistAddSongsActivity"
+            android:exported="false" />
+        <activity
+            android:name=".SettingActivity"
+            android:exported="false" />
+        <activity
+            android:name=".CleanBoostActivity"
+            android:exported="false" />
+        <activity
+            android:name=".PlaylistDetailActivity"
+            android:exported="false" />
+        <activity
+            android:name=".DownloadManageActivity"
+            android:exported="false" />
+        <activity
+            android:name=".BusinessPageActivity"
+            android:exported="false" />
+        <activity
+            android:name=".SplashActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

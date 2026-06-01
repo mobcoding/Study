@@ -1,0 +1,55 @@
+{
+  "showCount": 100,
+  "sameInterval": 30,
+  "differentInterval": 30,
+  "timeOut": 10,
+  "mixDownloadTotalcount": 1,
+  "mixDownloadInternalcount": 1,
+  "downloadivtime": 0,
+  "openivtime": 30,
+  "NormalBanner": [
+    { "adsource": "admob", "adweight": 1, "adtype": "banner", "placementid": "ca-app-pub-6683803235366791/3095932355" }
+  ],
+  "PageBanner": [
+    { "adsource": "max", "adweight": 1, "adtype": "native", "placementid": "2e82a8104e139bab" }
+  ],
+  "mixnative": [
+    { "adsource": "MAX", "adweight": 1, "adtype": "native", "placementid": "28ef126f3b74fd83" }
+  ],
+  "NVsearch": [
+    { "adsource": "MAX", "adweight": 1, "adtype": "native", "placementid": "be12cdb6813ba1d2" }
+  ],
+  "mixIVswitchback": [
+    { "adsource": "admob", "adweight": 4, "adtype": "open", "placementid": "ca-app-pub-4055761602240548/3312139299" },
+    { "adsource": "MAX", "adweight": 3, "adtype": "interstitial", "placementid": "b04e43a4b348c6bc" },
+    { "adsource": "admob", "adweight": 2, "adtype": "open", "placementid": "ca-app-pub-4055761602240548/6350900363" },
+    { "adsource": "admob", "adweight": 1, "adtype": "open", "placementid": "ca-app-pub-4055761602240548/6598312373" }
+  ],
+  "mixIVplay": [
+    { "adsource": "admob", "adweight": 3, "adtype": "interRewarded", "placementid": "ca-app-pub-4055761602240548/1231292472" },
+    { "adsource": "MAX", "adweight": 2, "adtype": "interstitial", "placementid": "fd75211b3f69cd4a" },
+    { "adsource": "MAX", "adweight": 1, "adtype": "interstitial", "placementid": "d73f3c178d116b0f" }
+  ],
+  "mixIVother": [
+    { "adsource": "admob", "adweight": 3, "adtype": "interRewarded", "placementid": "ca-app-pub-4055761602240548/1267234305" },
+    { "adsource": "pangle", "adweight": 2, "adtype": "interstitial", "placementid": "980624615" },
+    { "adsource": "MAX", "adweight": 1, "adtype": "interstitial", "placementid": "de8e957f07a1398c" }
+  ],
+  "mixIVDownload": [
+    { "adsource": "admob", "adweight": 3, "adtype": "interRewarded", "placementid": "ca-app-pub-4055761602240548/1267234305" },
+    { "adsource": "MAX", "adweight": 1, "adtype": "interstitial", "placementid": "4cbf6de1522f9c9e" }
+  ],
+  "mixIV_h": [
+    { "adsource": "admob", "adweight": 2, "adtype": "interstitial", "placementid": "ca-app-pub-4055761602240548/3788705803" },
+    { "adsource": "admob", "adweight": 1, "adtype": "interstitial", "placementid": "ca-app-pub-4055761602240548/6345135004" }
+  ],
+  "mixIVcleanBoost": [
+    { "adsource": "admob", "adweight": 4, "adtype": "interRewarded", "placementid": "ca-app-pub-4055761602240548/2408963571" },
+    { "adsource": "admob", "adweight": 3, "adtype": "interstitial", "placementid": "ca-app-pub-4055761602240548/6394846324" },
+    { "adsource": "admob", "adweight": 2, "adtype": "interstitial", "placementid": "ca-app-pub-4055761602240548/6066994525" },
+    { "adsource": "admob", "adweight": 1, "adtype": "interstitial", "placementid": "ca-app-pub-4055761602240548/8389905531" }
+  ],
+  "mixIVSetting": [
+    { "adsource": "admob", "adweight": 3, "adtype": "rewarded", "placementid": "ca-app-pub-4055761602240548/2822396114" }
+  ]
+}

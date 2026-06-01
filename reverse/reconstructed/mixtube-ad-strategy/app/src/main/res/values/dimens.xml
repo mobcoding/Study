@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="anythink_debug_dp_12">12dp</dimen>
+    <dimen name="anythink_debug_dp_16">16dp</dimen>
+    <dimen name="anythink_debug_dp_18">18dp</dimen>
+    <dimen name="anythink_debug_dp_24">24dp</dimen>
+    <dimen name="anythink_debug_dp_26">26dp</dimen>
+    <dimen name="anythink_debug_dp_30">30dp</dimen>
+    <dimen name="anythink_debug_dp_32">32dp</dimen>
+    <dimen name="anythink_debug_dp_44">44dp</dimen>
+    <dimen name="anythink_debug_dp_48">48dp</dimen>
+    <dimen name="main_text_small_size">14sp</dimen>
+    <dimen name="main_text_smaller_size">12sp</dimen>
+    <dimen name="main_text_smallest_size">10sp</dimen>
+</resources>

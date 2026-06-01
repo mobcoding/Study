@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Mixtube Ad Strategy Rebuild</string>
+    <string name="resource_loading">Loading resources...</string>
+    <string name="business_home_title">Mixtube Home</string>
+    <string name="business_home_subtitle">Cold start preload + scene-triggered ads</string>
+    <string name="action_play">Play</string>
+    <string name="action_playlist">Playlist</string>
+    <string name="action_download">Download</string>
+    <string name="action_switch_back">Switch Back</string>
+    <string name="action_tab_switch">Tab Switch</string>
+    <string name="action_like">Like</string>
+    <string name="action_search">Search</string>
+    <string name="action_other_tab">Other Tab</string>
+    <string name="action_other_like">Other Like</string>
+    <string name="action_other_search">Other Search</string>
+    <string name="action_other_playlist">Other Playlist</string>
+    <string name="action_other_download">Other Download</string>
+    <string name="action_play_pause">Play Pause</string>
+    <string name="action_clear_frequency">Clear Frequency</string>
+    <string name="action_open_full_native">Open Full Native</string>
+    <string name="label_entry_log">Entry Log</string>
+    <string name="business_inline_loading">Loading native ad...</string>
+    <string name="nav_home">Home</string>
+    <string name="nav_library">Library</string>
+    <string name="player_play_pause">Pause</string>
+    <string name="player_next">Next</string>
+    <string name="downloading_queue_hint">Added to save queue</string>
+    <string name="download_manage">offline management</string>
+    <string name="admob_test_app_id">ca-app-pub-3940256099942544~3347511713</string>
+    <string name="admob_app_id">ca-app-pub-4055761602240548~7361604136</string>
+    <string name="topon_app_id">a65a5e9558d0cb</string>
+    <string name="topon_app_key">mocked-topon-key-from-rebuild</string>
+    <string name="applovin_app_id">CsPeAoyR9TEJ8RaKNn29rG-TWhdzdDNSkkSgxWv8RgnUz_oRDHl9OoE5N_v0HqXST0t1Ji9TPUzt63fcFPv7m7</string>
+    <string name="unity_app_id">4852225</string>
+    <string name="bidmachine_app_id">89205652-372d-405e-b630-e2b01b890a0f</string>
+    <string name="pangle_app_id">8055488</string>
+    <string name="adwin_app_id">1688388417956585473</string>
+</resources>
