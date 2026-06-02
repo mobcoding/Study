@@ -1,14 +1,25 @@
-package com.rebuild.mixtube.ads
+﻿package com.rebuild.mixtube.ads
 
 import android.util.Log
 
-class AdPlacementResolver(private val remoteConfig: RemoteConfigStore) {
+class AdPlacementResolver(private val remoteConfig: RemoteConfigStore, private val repository: AdConfigRepository) {
+    /**
+     * 该APP使用的启动场景列表（直接来自 AdConfig.json 配置文件中注册的key）。
+     * 只有 remote_config 中 ad_placement_and=1 时才启用。
+     */
     fun startupScenes(): List<String> {
-        return remoteConfig.getString("ad_req_placement_and")
-            .split(',')
-            .map { it.trim() }
-            .filter { it.isNotEmpty() }
-            .distinct()
+        val enabled = remoteConfig.getString("ad_placement_and", "0") == "1"
+        if (!enabled) return emptyList()
+        val allScenes = repository.load().placements.keys
+        val startupOrder = listOf(
+            "mixIVswitchback", "mixIVplay", "mixIVother",
+            "mixIVDownload", "mixIV_h",
+            "mixIVcleanBoost", "mixIVSetting",
+            "mixnative", "NVsearch", "PageBanner", "NormalBanner"
+        )
+        val ordered = startupOrder.filter { it in allScenes }
+        Log.d(TAG, "startupScenes: ad_placement_and=$enabled scenes=$ordered")
+        return ordered
     }
 
     fun sceneForEvent(event: ProductEvent): String {
@@ -38,9 +49,7 @@ class AdPlacementResolver(private val remoteConfig: RemoteConfigStore) {
     }
 
     fun splashOpenDurationMillis(): Long {
-        val duration = remoteConfig.getLong("splash_open_duration", 5000L)
-        val forceShortSplash = remoteConfig.getString("full_native", "0") == "1"
-        return if (forceShortSplash) 3000L else duration
+        return remoteConfig.getLong("splash_open_duration", 7000L)
     }
 
     private companion object {

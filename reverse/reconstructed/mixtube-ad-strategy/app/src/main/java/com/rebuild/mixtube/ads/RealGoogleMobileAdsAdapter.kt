@@ -46,18 +46,8 @@ class RealGoogleMobileAdsAdapter(private val context: Context) : AdNetworkAdapte
             cached.show(activity)
             return AdShowResult(true, ad.scene, "show cached AdMob interstitial", ad.unit)
         }
-        InterstitialAd.load(activity, ad.unit.placementid, AdRequest.Builder().build(), object : InterstitialAdLoadCallback() {
-            override fun onAdLoaded(interstitialAd: InterstitialAd) {
-                interstitialAd.fullScreenContentCallback = loggingCallback(activity, ad)
-                interstitialAd.show(activity)
-            }
-
-            override fun onAdFailedToLoad(error: LoadAdError) {
-                Log.d(TAG, "Interstitial failed: ${error.message}")
-                PostAdNavigationManager.consumeAndStart(activity)
-            }
-        })
-        return AdShowResult(true, ad.scene, "requested real AdMob interstitial test ad", ad.unit)
+        GoogleFullscreenAdCache.preload(activity.applicationContext, ad.scene, ad.unit)
+        return AdShowResult(false, ad.scene, "cache miss AdMob interstitial", ad.unit)
     }
 
     private fun showRewarded(activity: Activity, ad: LoadedAd): AdShowResult {
@@ -67,18 +57,8 @@ class RealGoogleMobileAdsAdapter(private val context: Context) : AdNetworkAdapte
             cached.show(activity) { reward -> Log.d(TAG, "cached reward earned: ${reward.amount} ${reward.type}") }
             return AdShowResult(true, ad.scene, "show cached AdMob rewarded", ad.unit)
         }
-        RewardedAd.load(activity, ad.unit.placementid, AdRequest.Builder().build(), object : RewardedAdLoadCallback() {
-            override fun onAdLoaded(rewardedAd: RewardedAd) {
-                rewardedAd.fullScreenContentCallback = loggingCallback(activity, ad)
-                rewardedAd.show(activity) { reward -> Log.d(TAG, "reward earned: ${reward.amount} ${reward.type}") }
-            }
-
-            override fun onAdFailedToLoad(error: LoadAdError) {
-                Log.d(TAG, "Rewarded failed: ${error.message}")
-                PostAdNavigationManager.consumeAndStart(activity)
-            }
-        })
-        return AdShowResult(true, ad.scene, "requested real AdMob rewarded test ad", ad.unit)
+        GoogleFullscreenAdCache.preload(activity.applicationContext, ad.scene, ad.unit)
+        return AdShowResult(false, ad.scene, "cache miss AdMob rewarded", ad.unit)
     }
 
     private fun showRewardedInterstitial(activity: Activity, ad: LoadedAd): AdShowResult {
@@ -88,18 +68,8 @@ class RealGoogleMobileAdsAdapter(private val context: Context) : AdNetworkAdapte
             cached.show(activity) { reward -> Log.d(TAG, "cached reward interstitial earned: ${reward.amount} ${reward.type}") }
             return AdShowResult(true, ad.scene, "show cached AdMob rewarded interstitial", ad.unit)
         }
-        RewardedInterstitialAd.load(activity, ad.unit.placementid, AdRequest.Builder().build(), object : RewardedInterstitialAdLoadCallback() {
-            override fun onAdLoaded(rewardedInterstitialAd: RewardedInterstitialAd) {
-                rewardedInterstitialAd.fullScreenContentCallback = loggingCallback(activity, ad)
-                rewardedInterstitialAd.show(activity) { reward -> Log.d(TAG, "reward interstitial earned: ${reward.amount} ${reward.type}") }
-            }
-
-            override fun onAdFailedToLoad(error: LoadAdError) {
-                Log.d(TAG, "RewardedInterstitial failed: ${error.message}")
-                PostAdNavigationManager.consumeAndStart(activity)
-            }
-        })
-        return AdShowResult(true, ad.scene, "requested real AdMob rewarded interstitial test ad", ad.unit)
+        GoogleFullscreenAdCache.preload(activity.applicationContext, ad.scene, ad.unit)
+        return AdShowResult(false, ad.scene, "cache miss AdMob rewarded interstitial", ad.unit)
     }
 
     private fun showAppOpen(activity: Activity, ad: LoadedAd): AdShowResult {
@@ -109,18 +79,8 @@ class RealGoogleMobileAdsAdapter(private val context: Context) : AdNetworkAdapte
             cached.show(activity)
             return AdShowResult(true, ad.scene, "show cached AdMob app-open", ad.unit)
         }
-        AppOpenAd.load(activity, ad.unit.placementid, AdRequest.Builder().build(), object : AppOpenAd.AppOpenAdLoadCallback() {
-            override fun onAdLoaded(appOpenAd: AppOpenAd) {
-                appOpenAd.fullScreenContentCallback = loggingCallback(activity, ad)
-                appOpenAd.show(activity)
-            }
-
-            override fun onAdFailedToLoad(error: LoadAdError) {
-                Log.d(TAG, "AppOpen failed: ${error.message}")
-                PostAdNavigationManager.consumeAndStart(activity)
-            }
-        })
-        return AdShowResult(true, ad.scene, "requested real AdMob app-open test ad", ad.unit)
+        GoogleFullscreenAdCache.preload(activity.applicationContext, ad.scene, ad.unit)
+        return AdShowResult(false, ad.scene, "cache miss AdMob app-open", ad.unit)
     }
 
     private fun showNativeActivity(activity: Activity, ad: LoadedAd): AdShowResult {

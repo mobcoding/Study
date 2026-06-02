@@ -6,6 +6,7 @@ import android.util.Log
 class MixtubeRebuildApplication : Application() {
     override fun onCreate() {
         super.onCreate()
+        Tracking.initSession()
         ServiceLocator.init(this)
         registerActivityLifecycleCallbacks(ServiceLocator.appForegroundTracker)
         ServiceLocator.sdkInitializer.initializeAll()

@@ -1,4 +1,4 @@
-﻿package com.rebuild.mixtube.ads
+package com.rebuild.mixtube.ads
 
 import android.graphics.Color
 import android.graphics.Typeface
@@ -24,8 +24,16 @@ class AdWinInterActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         ServiceLocator.adManager.setAdWinShowing(true)
+        val decision = ServiceLocator.adWinRepository.canShow(this, ServiceLocator.remoteConfig)
+        if (!decision.allowed) {
+            Tracking.log(this, "adwin_blocked", mapOf("reason" to decision.reason))
+            finish()
+            return
+        }
         val ad = ServiceLocator.adWinRepository.currentAd()
         ServiceLocator.adWinRepository.sendImpressions(ad)
+        ServiceLocator.adWinRepository.recordShown(this)
+        Tracking.log(this, "adwin_showed", mapOf("id" to ad.id, "title" to ad.title))
         val scene = resolutionScene(ad)
         val source = "adwin"
         val type = "interstitial"
@@ -135,6 +143,7 @@ class AdWinInterActivity : AppCompatActivity() {
                     setOnClickListener {
                         ServiceLocator.adWinRepository.sendClick(ad)
                         ServiceLocator.markQueuedDownloads(true)
+                        Tracking.log(this@AdWinInterActivity, "adwin_clicked", mapOf("id" to ad.id))
                         continueFlow()
                     }
                 }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))

@@ -1,4 +1,4 @@
-﻿plugins {
+plugins {
     id("com.android.application")
 }
 
@@ -35,5 +35,9 @@ dependencies {
     implementation("androidx.appcompat:appcompat:1.7.1")
     implementation("com.google.android.material:material:1.13.0")
     implementation("com.google.code.gson:gson:2.14.0")
+    implementation("androidx.work:work-runtime-ktx:2.10.4")
     implementation("com.google.android.gms:play-services-ads:25.2.0")
+    implementation(platform("com.google.firebase:firebase-bom:34.0.0"))
+    implementation("com.google.firebase:firebase-messaging")
+    implementation("com.google.firebase:firebase-config")
 }

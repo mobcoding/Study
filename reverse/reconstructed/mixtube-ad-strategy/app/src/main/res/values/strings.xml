@@ -36,4 +36,7 @@
     <string name="bidmachine_app_id">89205652-372d-405e-b630-e2b01b890a0f</string>
     <string name="pangle_app_id">8055488</string>
     <string name="adwin_app_id">1688388417956585473</string>
+    <string name="channelId">hook_play_notify_channel</string>
+    <string name="remote_message_channelId">hook_play_notify_channel</string>
+    <string name="channelName">Mixtube</string>
 </resources>

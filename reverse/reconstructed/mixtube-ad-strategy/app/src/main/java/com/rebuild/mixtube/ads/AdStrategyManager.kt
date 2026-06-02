@@ -75,6 +75,10 @@ class AdStrategyManager(
     }
 
     fun showScene(activity: Activity, scene: String): AdShowResult {
+        return showScene(activity, scene, trigger = null)
+    }
+
+    fun showScene(activity: Activity, scene: String, trigger: FrequencyController.FrequencyTrigger?): AdShowResult {
         if (!resolver.shouldShowAd()) {
             lifecycle.onAdFailed(scene, "ad_need_show disabled")
             return AdShowResult(false, scene, "blocked: ad_need_show disabled")
@@ -85,27 +89,65 @@ class AdStrategyManager(
         }
 
         val config = repository.load()
-        if (!frequency.canShow(scene, config)) {
-            lifecycle.onAdFailed(scene, "frequency ${frequency.snapshot()}")
-            return AdShowResult(false, scene, "blocked by frequency: ${frequency.snapshot()}")
+        val units = repository.unitsFor(scene)
+        if (units.isEmpty()) return AdShowResult(false, scene, "no config units for scene")
+
+        val sortedUnits = units.sortedByDescending { it.adweight }
+        val effectiveTrigger = trigger ?: frequencyTriggerFromScene(scene, sortedUnits.first())
+
+        val topAd = loadedAds[scene]
+        if (topAd != null) {
+            if (!frequency.canShow(scene, config, topAd.unit, effectiveTrigger)) {
+                lifecycle.onAdFailed(scene, "frequency ${frequency.snapshot()}")
+                return AdShowResult(false, scene, "blocked by frequency: ${frequency.snapshot()}")
+            }
+        } else {
+            if (!frequency.canShow(scene, config, sortedUnits.firstOrNull(), effectiveTrigger)) {
+                lifecycle.onAdFailed(scene, "frequency ${frequency.snapshot()}")
+                return AdShowResult(false, scene, "blocked by frequency: ${frequency.snapshot()}")
+            }
         }
 
-        val ad = loadedAds[scene] ?: run {
-            preloadScene(scene)
-            loadedAds[scene]
-        } ?: return AdShowResult(false, scene, "no cached ad and no fallback config")
+        var lastMessage = "no attempt"
+        for ((index, unit) in sortedUnits.withIndex()) {
+            val adapter = adapterFor(unit)
+            val ad = if (loadedAds[scene]?.unit == unit) {
+                loadedAds[scene]
+            } else {
+                adapter.load(scene, unit).also {
+                    loadedAds[scene] = it
+                    lifecycle.onAdLoaded(it)
+                }
+            } ?: continue
 
-        val result = adapterFor(ad.unit).show(activity, ad)
-        if (result.shown) {
-            lifecycle.onAdShowed(ad)
-            frequency.recordShow(scene)
-            preloadScene(scene)
+            val result = adapter.show(activity, ad)
+            lastMessage = "try#${index + 1}/${sortedUnits.size} source=${unit.adsource} type=${unit.adtype} => ${result.message}"
+            if (result.shown) {
+                lifecycle.onAdShowed(ad)
+                frequency.recordShow(scene, ad.unit, effectiveTrigger)
+                preloadScene(scene)
+                return result
+            }
+            lifecycle.onAdFailed(scene, lastMessage)
         }
-        return result
+
+        lifecycle.onAdFailed(scene, "all_failed $lastMessage")
+        return AdShowResult(false, scene, "all failed: $lastMessage")
     }
 
     fun showEvent(activity: Activity, event: ProductEvent): AdShowResult {
-        return showScene(activity, resolver.sceneForEvent(event))
+        val scene = resolver.sceneForEvent(event)
+        val trigger = when (event) {
+            ProductEvent.AppSwitchBack -> FrequencyController.FrequencyTrigger.SWITCHBACK
+            ProductEvent.PlayStart, ProductEvent.PlayCool -> FrequencyController.FrequencyTrigger.PLAY
+            ProductEvent.Download, ProductEvent.OtherDownload -> FrequencyController.FrequencyTrigger.DOWNLOAD
+            ProductEvent.Search, ProductEvent.OtherSearch -> FrequencyController.FrequencyTrigger.OTHER
+            ProductEvent.OpenPlaylist, ProductEvent.OtherPlaylist -> FrequencyController.FrequencyTrigger.OTHER
+            ProductEvent.TabSwitch, ProductEvent.OtherTab -> FrequencyController.FrequencyTrigger.OTHER
+            ProductEvent.Like, ProductEvent.OtherLike -> FrequencyController.FrequencyTrigger.OTHER
+            ProductEvent.PlayPause -> FrequencyController.FrequencyTrigger.OTHER
+        }
+        return showScene(activity, scene, trigger)
     }
 
     fun showTopOnSplash(activity: Activity, placementId: String) {
@@ -125,6 +167,11 @@ class AdStrategyManager(
     }
 
     fun showAdWin(activity: Activity) {
+        val decision = ServiceLocator.adWinRepository.canShow(activity, remoteConfig)
+        if (!decision.allowed) {
+            Tracking.log(activity, "adwin_blocked", mapOf("reason" to decision.reason, "source" to "manager"))
+            return
+        }
         activity.startActivity(Intent(activity, AdWinInterActivity::class.java))
     }
 
@@ -178,6 +225,19 @@ class AdStrategyManager(
     private fun adapterFor(unit: AdUnitConfig): AdNetworkAdapter {
         return adapters.firstOrNull { it.supports(unit.adsource) }
             ?: MockAdNetworkAdapter(unit.adsource)
+    }
+
+    private fun frequencyTriggerFromScene(scene: String, unit: AdUnitConfig): FrequencyController.FrequencyTrigger {
+        return when {
+            unit.adtype.equals("open", ignoreCase = true) -> FrequencyController.FrequencyTrigger.SWITCHBACK
+            scene.equals(AdScene.Download.key, ignoreCase = true) -> FrequencyController.FrequencyTrigger.DOWNLOAD
+            scene.equals(AdScene.Play.key, ignoreCase = true) -> FrequencyController.FrequencyTrigger.PLAY
+            scene.equals(AdScene.NativeHome.key, ignoreCase = true) || scene.equals(AdScene.NativeSearch.key, ignoreCase = true) ->
+                FrequencyController.FrequencyTrigger.NATIVE
+            scene.contains("Banner", ignoreCase = true) || unit.adtype.contains("banner", ignoreCase = true) ->
+                FrequencyController.FrequencyTrigger.BANNER
+            else -> FrequencyController.FrequencyTrigger.OTHER
+        }
     }
 
     private data class StartupPresentation(

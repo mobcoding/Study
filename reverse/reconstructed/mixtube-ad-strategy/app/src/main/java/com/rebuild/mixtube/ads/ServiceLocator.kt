@@ -41,7 +41,7 @@ object ServiceLocator {
         remoteConfig = AssetRemoteConfigStore(appContext)
         adConfigRepository = AdConfigRepository(appContext)
         frequencyController = FrequencyController(appContext)
-        placementResolver = AdPlacementResolver(remoteConfig)
+        placementResolver = AdPlacementResolver(remoteConfig, adConfigRepository)
         weightedSelector = WeightedAdSelector(appContext)
         adWinRepository = AdWinRepository()
         sdkInitializer = SdkInitializer(appContext)
@@ -53,7 +53,7 @@ object ServiceLocator {
             frequency = frequencyController,
             resolver = placementResolver,
             selector = weightedSelector,
-            lifecycle = LoggingAdLifecycleListener(),
+            lifecycle = LoggingAdLifecycleListener(appContext),
             adapters = listOf(
                 RealGoogleMobileAdsAdapter(appContext),
                 MockAdNetworkAdapter("admob"),

@@ -30,6 +30,9 @@ class AdConfigRepository(
             mixDownloadInternalcount = root.intValue("mixDownloadInternalcount", 1),
             downloadivtime = root.intValue("downloadivtime", 0),
             openivtime = root.intValue("openivtime", 30),
+            coolISeconds = root.intValue("coolISeconds", 60),
+            coolNSeconds = root.intValue("coolNSeconds", 30),
+            coolPSeconds = root.intValue("coolPSeconds", 180),
             placements = placements
         ).also { cached = it }
     }

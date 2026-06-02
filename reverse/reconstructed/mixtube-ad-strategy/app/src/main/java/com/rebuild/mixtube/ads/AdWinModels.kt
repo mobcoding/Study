@@ -1,6 +1,8 @@
-﻿package com.rebuild.mixtube.ads
+package com.rebuild.mixtube.ads
 
+import android.content.Context
 import android.util.Log
+import java.util.Locale
 
 data class AdWinNativeAd(
     val id: String,
@@ -19,6 +21,7 @@ data class AdWinNativeAd(
 
 class AdWinRepository {
     private var currentIndex = 0
+    private val prefsName = "adwin_policy"
 
     private val adPool = listOf(
         AdWinNativeAd(
@@ -78,6 +81,52 @@ class AdWinRepository {
         )
     )
 
+    fun canShow(context: Context, remoteConfig: RemoteConfigStore): AdWinDecision {
+        val showTimeHours = remoteConfig.getLong("adwin_show_time", 48L).coerceAtLeast(0L)
+        val maxCount = remoteConfig.getLong("adwin_show_max_count", 30L).coerceAtLeast(0L)
+        val minIntervalHours = remoteConfig.getLong("adwin_show_inter_count", 1L).coerceAtLeast(0L)
+        val allowCountriesRaw = remoteConfig.getString("adwin_show_country", "").trim()
+
+        val prefs = context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
+        val shownCount = prefs.getLong(KEY_SHOWN_COUNT, 0L)
+        val lastShownAt = prefs.getLong(KEY_LAST_SHOWN_AT, 0L)
+
+        if (maxCount > 0 && shownCount >= maxCount) return AdWinDecision(false, "max_count")
+
+        val packageInfo = runCatching { context.packageManager.getPackageInfo(context.packageName, 0) }.getOrNull()
+        val firstInstallTime = packageInfo?.firstInstallTime ?: 0L
+        if (firstInstallTime > 0 && showTimeHours > 0) {
+            val requiredMillis = showTimeHours * 3_600_000L
+            if (System.currentTimeMillis() - firstInstallTime < requiredMillis) return AdWinDecision(false, "install_window")
+        }
+
+        if (lastShownAt > 0 && minIntervalHours > 0) {
+            val requiredMillis = minIntervalHours * 3_600_000L
+            if (System.currentTimeMillis() - lastShownAt < requiredMillis) return AdWinDecision(false, "interval")
+        }
+
+        if (allowCountriesRaw.isNotBlank()) {
+            val allow = allowCountriesRaw
+                .split(",", ";", " ")
+                .mapNotNull { it.trim().takeIf { s -> s.isNotBlank() } }
+                .map { it.uppercase(Locale.US) }
+                .toSet()
+            val country = Locale.getDefault().country.uppercase(Locale.US)
+            if (country.isNotBlank() && country !in allow) return AdWinDecision(false, "country")
+        }
+
+        return AdWinDecision(true, "ok")
+    }
+
+    fun recordShown(context: Context) {
+        val prefs = context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
+        val count = prefs.getLong(KEY_SHOWN_COUNT, 0L) + 1L
+        prefs.edit()
+            .putLong(KEY_SHOWN_COUNT, count)
+            .putLong(KEY_LAST_SHOWN_AT, System.currentTimeMillis())
+            .apply()
+    }
+
     fun currentAd(): AdWinNativeAd {
         val ad = adPool[currentIndex % adPool.size]
         currentIndex++
@@ -98,5 +147,12 @@ class AdWinRepository {
 
     private companion object {
         const val TAG = "AdWin"
+        const val KEY_SHOWN_COUNT = "shown_count"
+        const val KEY_LAST_SHOWN_AT = "last_shown_at"
     }
 }
+
+data class AdWinDecision(
+    val allowed: Boolean,
+    val reason: String,
+)

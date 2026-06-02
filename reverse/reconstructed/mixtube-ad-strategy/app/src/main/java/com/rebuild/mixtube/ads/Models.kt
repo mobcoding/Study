@@ -16,6 +16,9 @@ data class AdStrategyConfig(
     val mixDownloadInternalcount: Int = 1,
     val downloadivtime: Int = 0,
     val openivtime: Int = 30,
+    val coolISeconds: Int = 60,
+    val coolNSeconds: Int = 30,
+    val coolPSeconds: Int = 180,
     val placements: Map<String, List<AdUnitConfig>> = emptyMap()
 )
 
