@@ -36,6 +36,8 @@
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.READ_CALENDAR" />
+    <uses-permission android:name="android.permission.WRITE_CALENDAR" />
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission
@@ -110,6 +112,9 @@
             android:name=".ui.activity.InterstitialActivity"
             android:exported="false" />
         <activity
+            android:name=".ui.activity.FullNativeAdActivity"
+            android:exported="false" />
+        <activity
             android:name=".ui.activity.AccessPerActivity"
             android:exported="false" />
         <activity
@@ -143,6 +148,9 @@
             android:name=".ui.activity.NotificationActivity"
             android:exported="false" />
         <activity
+            android:name=".ui.activity.CalendarReminderActivity"
+            android:exported="false" />
+        <activity
             android:name=".ui.activity.SelectorActivity"
             android:exported="false" />
         <activity
@@ -169,6 +177,9 @@
         <!--Service-->
         <!--Receiver-->
         <receiver android:name=".receiver.ReplyMessageReceiver" />
+        <receiver
+            android:name=".receiver.CalendarReminderReceiver"
+            android:exported="false" />
         <!--Receiver-->
         <!--Provider-->
         <!--对内内容提供者-->

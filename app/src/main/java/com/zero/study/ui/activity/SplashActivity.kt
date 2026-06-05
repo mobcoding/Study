@@ -9,12 +9,11 @@ import android.widget.Toast
 import androidx.core.animation.doOnEnd
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
+import com.toolkit.admob.manager.AdMobManager
 import com.toolkit.admob.manager.AdMobManager.dealConsentActionThen
-import com.toolkit.admob.manager.AdMobManager.initMobileAds
 import com.toolkit.admob.manager.OpenAdMobManager
 import com.zero.base.activity.BaseActivity
 import com.zero.base.util.StorageUtils
-import com.zero.study.BuildConfig
 import com.zero.study.databinding.ActivitySplashBinding
 import com.zero.study.ui.model.SplashViewModel
 import kotlinx.coroutines.delay
@@ -34,10 +33,6 @@ class SplashActivity : BaseActivity<ActivitySplashBinding>(ActivitySplashBinding
         get() = StorageUtils.getBoolean(TIME_START, true)
 
     override fun initView() {
-        if (BuildConfig.DEBUG) {
-            doNext(false)
-            return
-        }
         dealConsentActionThen(this@SplashActivity, { loadOpenAd() }, timeFirst)
     }
 
@@ -60,7 +55,6 @@ class SplashActivity : BaseActivity<ActivitySplashBinding>(ActivitySplashBinding
         val maxDurationMs = 7_000L
         binding.loadingProgress.max = maxProgress
         binding.loadingProgress.progress = 0
-        OpenAdMobManager.tryLoad()
         val animator = ObjectAnimator.ofInt(binding.loadingProgress, "progress", 0,
             maxProgress).apply {
             duration = maxDurationMs
@@ -73,11 +67,19 @@ class SplashActivity : BaseActivity<ActivitySplashBinding>(ActivitySplashBinding
         }
         animator.start()
         lifecycleScope.launch {
-            delay(2_000)
-            while (!OpenAdMobManager.isAvailable()) {
+            val initWaitStart = System.currentTimeMillis()
+            while (!AdMobManager.atomicBoolean.get() && System.currentTimeMillis() - initWaitStart < 3_000L) {
                 delay(50)
             }
-            if (animator.isRunning) animator.end()
+            OpenAdMobManager.tryLoad()
+            delay(2_000)
+            val waitStart = System.currentTimeMillis()
+            while (!OpenAdMobManager.isAvailable() && System.currentTimeMillis() - waitStart < maxDurationMs) {
+                delay(50)
+            }
+            if (OpenAdMobManager.isAvailable() && animator.isRunning) {
+                animator.end()
+            }
         }
     }
 

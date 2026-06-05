@@ -21,6 +21,10 @@ object OpenAdMobManager {
     const val OPEN_AD_ID: String = BuildConfig.ADMOB_OPEN
     fun tryLoad() {
         AdMobManager.logMsg("OpenAd tryLoad...$OPEN_AD_ID")
+        if (!AdMobManager.atomicBoolean.get()) {
+            AdMobManager.logMsg("OpenAd loadAd skip: AdMob is not initialized")
+            return
+        }
         if (isLoadingAd.get() || isAvailable()) {
             AdMobManager.logMsg(
                 "OpenAd loadAd skip: loading=${isLoadingAd.get()}, available=${isAvailable()}")

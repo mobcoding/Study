@@ -22,6 +22,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 object AdMobManager {
 
     val atomicBoolean = AtomicBoolean(false)
+    private val isInitializing = AtomicBoolean(false)
     var appLifecycle: AppLifecycle? = null
 
     var connected = false
@@ -30,8 +31,12 @@ object AdMobManager {
     }
 
     fun initMobileAds(app: Context, timeFirst: Boolean) {
-        if (atomicBoolean.getAndSet(true)) {
+        if (atomicBoolean.get()) {
             logMsg("-->Admob initialized ")
+            return
+        }
+        if (isInitializing.getAndSet(true)) {
+            logMsg("-->Admob initializing, skip duplicate init ")
             return
         }
         val backgroundScope = CoroutineScope(Dispatchers.IO)
@@ -39,6 +44,7 @@ object AdMobManager {
             logMsg("--> Admob initializing... ")
             MobileAds.initialize(app) {
                 atomicBoolean.set(true)
+                isInitializing.set(false)
                 logMsg("--> Admob complete... ")
                 if (timeFirst) {
                     loadAd(app, BuildConfig.ADMOB_INTERSTITIAL_GUIDE)
