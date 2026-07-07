@@ -23,7 +23,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="14dp"
         android:lineSpacingExtra="4dp"
-        android:text="流程：申请日历/通知权限 → 写入系统日历事件 → 写入 0 分钟提醒 → 到点后由本应用发送通知。"
+        android:text="方式一：申请日历权限后直接写入系统日历。方式二：不申请日历权限，跳转系统日历页面让用户保存事件。本应用通知只需要通知权限。"
         android:textColor="@color/appThemeColor"
         android:textSize="15sp"
         app:layout_constraintEnd_toEndOf="parent"
@@ -43,6 +43,18 @@
         app:layout_constraintTop_toBottomOf="@id/tv_desc" />
 
     <androidx.appcompat.widget.AppCompatButton
+        android:id="@+id/btn_open_system_calendar"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:backgroundTint="@color/appThemeColor"
+        android:text="跳转系统日历页面创建提醒"
+        android:textColor="@color/colorWhite"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/btn_create_reminder" />
+
+    <androidx.appcompat.widget.AppCompatButton
         android:id="@+id/btn_send_now"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
@@ -52,7 +64,7 @@
         android:textColor="@color/colorWhite"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/btn_create_reminder" />
+        app:layout_constraintTop_toBottomOf="@id/btn_open_system_calendar" />
 
     <androidx.appcompat.widget.AppCompatTextView
         android:id="@+id/tv_status"

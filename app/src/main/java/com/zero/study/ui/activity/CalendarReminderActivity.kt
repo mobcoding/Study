@@ -3,6 +3,7 @@ package com.zero.study.ui.activity
 import android.Manifest
 import android.app.AlarmManager
 import android.app.PendingIntent
+import android.content.ActivityNotFoundException
 import android.content.ContentUris
 import android.content.ContentValues
 import android.content.Context
@@ -44,8 +45,17 @@ class CalendarReminderActivity : BaseActivity<ActivityCalendarReminderBinding>(A
         }
     }
 
+    private val systemCalendarNotificationPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            openSystemCalendarAndScheduleNotification()
+        } else {
+            updateStatus("通知权限未授予，只能打开系统日历，不能安排本应用通知。")
+            openSystemCalendarPage(System.currentTimeMillis() + TimeUnit.MINUTES.toMillis(1))
+        }
+    }
+
     override fun initView() {
-        updateStatus("点击按钮会创建一个 1 分钟后的系统日历事件，并安排同一时间发送本应用通知。")
+        updateStatus("方式一会申请日历权限并直接写入事件；方式二只跳转系统日历页面，由用户手动保存事件。")
     }
 
     override fun initData() = Unit
@@ -53,6 +63,9 @@ class CalendarReminderActivity : BaseActivity<ActivityCalendarReminderBinding>(A
     override fun addListener() {
         binding.btnCreateReminder.setOnClickListener {
             requestPermissionsThenCreateReminder()
+        }
+        binding.btnOpenSystemCalendar.setOnClickListener {
+            requestNotificationThenOpenSystemCalendar()
         }
         binding.btnSendNow.setOnClickListener {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
@@ -66,6 +79,16 @@ class CalendarReminderActivity : BaseActivity<ActivityCalendarReminderBinding>(A
                     "这是不等待日历提醒时间的即时通知，用于验证通知权限和渠道。"
                 )
             }
+        }
+    }
+
+    private fun requestNotificationThenOpenSystemCalendar() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            systemCalendarNotificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            openSystemCalendarAndScheduleNotification()
         }
     }
 
@@ -115,6 +138,43 @@ class CalendarReminderActivity : BaseActivity<ActivityCalendarReminderBinding>(A
             Toast.makeText(this, "已设置 1 分钟后的日历提醒", Toast.LENGTH_SHORT).show()
         }.onFailure { throwable ->
             updateStatus("创建日历提醒失败：${throwable.message ?: throwable.javaClass.simpleName}")
+        }
+    }
+
+    private fun openSystemCalendarAndScheduleNotification() {
+        val beginMillis = System.currentTimeMillis() + TimeUnit.MINUTES.toMillis(1)
+        val title = "ZeroStudy 系统日历页面示例"
+        val content = "从系统日历页面保存提醒后，到点同时由本应用发送通知。"
+        val notificationId = System.currentTimeMillis() % Int.MAX_VALUE
+        if (openSystemCalendarPage(beginMillis, title, content)) {
+            scheduleNotification(notificationId, title, content, beginMillis)
+            val timeText = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(beginMillis))
+            updateStatus("已打开系统日历新建页面，并安排本应用 $timeText 发送通知。请在系统日历页面手动保存事件。")
+        }
+    }
+
+    private fun openSystemCalendarPage(
+        beginMillis: Long,
+        title: String = "ZeroStudy 系统日历页面示例",
+        content: String = "从系统日历页面保存提醒后，到点同时由本应用发送通知。"
+    ): Boolean {
+        val endMillis = beginMillis + TimeUnit.MINUTES.toMillis(10)
+        val intent = Intent(Intent.ACTION_INSERT).apply {
+            data = CalendarContract.Events.CONTENT_URI
+            putExtra(CalendarContract.Events.TITLE, title)
+            putExtra(CalendarContract.Events.DESCRIPTION, content)
+            putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, beginMillis)
+            putExtra(CalendarContract.EXTRA_EVENT_END_TIME, endMillis)
+            putExtra(CalendarContract.Events.EVENT_TIMEZONE, TimeZone.getDefault().id)
+            putExtra(CalendarContract.Events.HAS_ALARM, true)
+            putExtra(CalendarContract.Reminders.MINUTES, 0)
+        }
+        return try {
+            startActivity(intent)
+            true
+        } catch (_: ActivityNotFoundException) {
+            updateStatus("没有找到可处理日历新建事件的系统应用。")
+            false
         }
     }
 
