@@ -12,21 +12,30 @@ import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JPasswordField;
+import javax.swing.JProgressBar;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.SwingUtilities;
 import javax.swing.SwingWorker;
+import javax.swing.Timer;
 import javax.swing.TransferHandler;
 import javax.swing.UIManager;
+import javax.swing.JComponent;
+import javax.swing.plaf.basic.BasicProgressBarUI;
 import java.awt.BorderLayout;
+import java.awt.Color;
 import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.awt.Point;
+import java.awt.Rectangle;
+import java.awt.RenderingHints;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -115,6 +124,10 @@ public final class AabToolGuiApp {
     private static final int GUI_CHINESE_PREVIEW_LIMIT = GUI_SECTION_PREVIEW_LIMIT;
     private static final int MAX_SAMPLE_TEXT = 120;
     private static final int MAX_GENERIC_SCAN_BYTES = 4 * 1024 * 1024;
+    private static final Color ACTIVE_PROGRESS_COLOR = new Color(43, 119, 192);
+    private static final Color SUCCESS_PROGRESS_COLOR = new Color(39, 136, 93);
+    private static final Color FAILURE_PROGRESS_COLOR = new Color(190, 76, 76);
+    private static final Color PROGRESS_TRACK_COLOR = new Color(224, 229, 235);
     private static volatile Path preferredJavaBinary;
 
     private AabToolGuiApp() {
@@ -694,6 +707,8 @@ public final class AabToolGuiApp {
         private final JButton refreshDevicesButton = new JButton("刷新");
         private final JButton advancedToggleButton = new JButton("显示高级选项");
         private final JButton startButton = new JButton("开始");
+        private final JLabel progressLabel = new JLabel("就绪");
+        private final JProgressBar progressBar = new JProgressBar();
         private final JTextArea logArea = new JTextArea(26, 88);
         private final JScrollPane logScrollPane = new JScrollPane(logArea);
         private final JPanel advancedPanel = new JPanel(new GridBagLayout());
@@ -813,6 +828,23 @@ public final class AabToolGuiApp {
         private JPanel buildActionPanel() {
             JPanel panel = new JPanel(new BorderLayout());
 
+            JPanel progressPanel = new JPanel(new BorderLayout(0, 4));
+            progressPanel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(1, 0, 0, 0, new Color(218, 218, 218)),
+                BorderFactory.createEmptyBorder(7, 0, 6, 0)
+            ));
+            progressLabel.setForeground(new Color(65, 65, 65));
+            progressLabel.setHorizontalAlignment(JLabel.LEFT);
+            progressBar.setPreferredSize(new Dimension(0, 18));
+            progressBar.setBorder(BorderFactory.createEmptyBorder());
+            progressBar.setOpaque(false);
+            progressBar.setBackground(PROGRESS_TRACK_COLOR);
+            progressBar.setForeground(ACTIVE_PROGRESS_COLOR);
+            progressBar.setUI(new StatusProgressBarUI());
+            progressBar.setIndeterminate(false);
+            progressPanel.add(progressLabel, BorderLayout.NORTH);
+            progressPanel.add(progressBar, BorderLayout.CENTER);
+
             JPanel hintPanel = new JPanel();
             hintPanel.setLayout(new BoxLayout(hintPanel, BoxLayout.Y_AXIS));
             hintPanel.add(new JLabel("说明："));
@@ -834,6 +866,7 @@ public final class AabToolGuiApp {
 
             panel.add(hintPanel, BorderLayout.WEST);
             panel.add(buttonPanel, BorderLayout.EAST);
+            panel.add(progressPanel, BorderLayout.NORTH);
             return panel;
         }
 
@@ -1154,21 +1187,39 @@ public final class AabToolGuiApp {
             saveSettings(config);
             startButton.setEnabled(false);
             resetLogArea();
+            beginProgress("正在准备任务...");
 
-            new SwingWorker<ExecutionResult, String>() {
+            new SwingWorker<ExecutionResult, WorkflowUiEvent>() {
                 @Override
                 protected ExecutionResult doInBackground() {
                     try {
-                        return runWorkflow(config, this::publish);
+                        return runWorkflow(
+                            config,
+                            line -> publish(WorkflowUiEvent.log(line)),
+                            status -> publish(WorkflowUiEvent.progress(status))
+                        );
                     } catch (Exception e) {
                         return new ExecutionResult(false, e.getMessage());
                     }
                 }
 
                 @Override
-                protected void process(List<String> chunks) {
-                    for (String chunk : chunks) {
-                        appendLog(chunk);
+                protected void process(List<WorkflowUiEvent> events) {
+                    List<String> logLines = new ArrayList<>();
+                    String latestProgressMessage = null;
+                    for (WorkflowUiEvent event : events) {
+                        if (event.logLine != null) {
+                            logLines.add(event.logLine);
+                        }
+                        if (event.progressMessage != null) {
+                            latestProgressMessage = event.progressMessage;
+                        }
+                    }
+                    if (!logLines.isEmpty()) {
+                        appendLogBatch(logLines);
+                    }
+                    if (latestProgressMessage != null) {
+                        beginProgress(latestProgressMessage);
                     }
                 }
 
@@ -1177,6 +1228,7 @@ public final class AabToolGuiApp {
                     startButton.setEnabled(true);
                     try {
                         ExecutionResult result = get();
+                        completeProgress(result.success);
                         appendLog("");
                         appendLog(result.message);
                         JOptionPane.showMessageDialog(
@@ -1186,10 +1238,25 @@ public final class AabToolGuiApp {
                             result.success ? JOptionPane.INFORMATION_MESSAGE : JOptionPane.ERROR_MESSAGE
                         );
                     } catch (Exception e) {
+                        completeProgress(false);
                         appendLog("界面异常：" + e.getMessage());
                     }
                 }
             }.execute();
+        }
+
+        private void beginProgress(String message) {
+            progressLabel.setText(message);
+            progressBar.setValue(0);
+            progressBar.setForeground(ACTIVE_PROGRESS_COLOR);
+            progressBar.setIndeterminate(true);
+        }
+
+        private void completeProgress(boolean success) {
+            progressLabel.setText(success ? "任务完成" : "任务失败");
+            progressBar.setIndeterminate(false);
+            progressBar.setForeground(success ? SUCCESS_PROGRESS_COLOR : FAILURE_PROGRESS_COLOR);
+            progressBar.setValue(success ? progressBar.getMaximum() : progressBar.getMinimum());
         }
 
         private ToolConfig collectConfig() {
@@ -1231,6 +1298,11 @@ public final class AabToolGuiApp {
 
         private void appendLog(String line) {
             rawLogLines.add(line);
+            renderLogArea(false, true);
+        }
+
+        private void appendLogBatch(List<String> lines) {
+            rawLogLines.addAll(lines);
             renderLogArea(false, true);
         }
 
@@ -1573,9 +1645,36 @@ public final class AabToolGuiApp {
                 this.x = x;
             }
         }
+
+        private static final class WorkflowUiEvent {
+            private final String logLine;
+            private final String progressMessage;
+
+            private WorkflowUiEvent(String logLine, String progressMessage) {
+                this.logLine = logLine;
+                this.progressMessage = progressMessage;
+            }
+
+            private static WorkflowUiEvent log(String line) {
+                return new WorkflowUiEvent(line, null);
+            }
+
+            private static WorkflowUiEvent progress(String message) {
+                return new WorkflowUiEvent(null, message);
+            }
+        }
     }
 
     private static ExecutionResult runWorkflow(ToolConfig config, java.util.function.Consumer<String> logSink) throws Exception {
+        return runWorkflow(config, logSink, status -> {});
+    }
+
+    private static ExecutionResult runWorkflow(
+        ToolConfig config,
+        java.util.function.Consumer<String> logSink,
+        java.util.function.Consumer<String> progressSink
+    ) throws Exception {
+        progressSink.accept("正在准备安装环境...");
         Path aab = expandUserPath(config.aabPath).toAbsolutePath().normalize();
         Path output = expandUserPath(config.outputPath).toAbsolutePath().normalize();
         Path bundletool = resolveExistingFile(resolveBundletool(config.bundletoolPath), "bundletool JAR");
@@ -1612,6 +1711,7 @@ public final class AabToolGuiApp {
         logSink.accept("");
 
         logSink.accept("  AAB SHA-256: " + aabSha256);
+        progressSink.accept("正在构建 APK 集...");
         StringBuilder buildOutput = new StringBuilder();
         List<String> buildCommand = new ArrayList<>();
         buildCommand.add(javaBin.toString());
@@ -1646,6 +1746,7 @@ public final class AabToolGuiApp {
         }
 
         if (config.runLegacyChecks) {
+            progressSink.accept("正在执行静态检查...");
             runLegacyChecks(aab, output, aapt2, logSink);
         }
 
@@ -1653,6 +1754,7 @@ public final class AabToolGuiApp {
             return new ExecutionResult(true, "APK 集构建完成：" + output);
         }
 
+        progressSink.accept("正在解析应用安装信息...");
         LaunchTarget launchTarget = resolveLaunchTarget(aab, output, aapt2, logSink);
         if (!isBlank(resolvedDeviceId) && launchTarget != null && !isBlank(launchTarget.packageName)) {
             boolean installed = isPackageInstalled(launchTarget.packageName, adbArg, resolvedDeviceId, logSink);
@@ -1683,6 +1785,7 @@ public final class AabToolGuiApp {
             installCommand.add("--grant-runtime-permissions");
         }
 
+        progressSink.accept("正在安装 APK 集，请稍候...");
         int installExit = runBundletoolCommand(installCommand, installOutput, logSink, adbArg);
         if (installExit != 0
             && containsUpdateIncompatible(installOutput.toString())
@@ -1690,9 +1793,11 @@ public final class AabToolGuiApp {
             && launchTarget != null
             && !isBlank(launchTarget.packageName)) {
             logSink.accept("检测到 INSTALL_FAILED_UPDATE_INCOMPATIBLE，正在卸载旧应用并重试一次...");
+            progressSink.accept("签名冲突，正在卸载旧应用...");
             boolean uninstallOk = uninstallPackage(launchTarget.packageName, adbArg, resolvedDeviceId, logSink);
             if (uninstallOk) {
                 installOutput.setLength(0);
+                progressSink.accept("正在重新安装 APK 集，请稍候...");
                 installExit = runBundletoolCommand(installCommand, installOutput, logSink, adbArg);
             } else {
                 logSink.accept("自动卸载失败，已跳过重试安装。");
@@ -1706,6 +1811,7 @@ public final class AabToolGuiApp {
 
         String launchStatus = "";
         if (config.autoLaunchAfterInstall) {
+            progressSink.accept("正在启动应用...");
             launchStatus = launchInstalledApp(output, aapt2, adbArg, resolvedDeviceId, launchTarget, logSink);
         }
 
@@ -4165,6 +4271,105 @@ public final class AabToolGuiApp {
             this.keyAlias = keyAlias;
             this.keyPassword = keyPassword;
             this.summary = summary;
+        }
+    }
+
+    private static final class StatusProgressBarUI extends BasicProgressBarUI {
+        private static final int TRACK_HEIGHT = 8;
+        private static final int ANIMATION_INTERVAL_MILLIS = 33;
+        private static final long ANIMATION_CYCLE_MILLIS = 3_200L;
+        private static final double SLIDER_WIDTH_RATIO = 0.22;
+        private Timer animationTimer;
+        private long animationStartNanos;
+
+        @Override
+        public void update(Graphics graphics, JComponent component) {
+            paint(graphics, component);
+        }
+
+        @Override
+        protected void startAnimationTimer() {
+            stopAnimationTimer();
+            animationStartNanos = System.nanoTime();
+            animationTimer = new Timer(ANIMATION_INTERVAL_MILLIS, event -> {
+                if (progressBar != null && progressBar.isIndeterminate()) {
+                    progressBar.repaint();
+                }
+            });
+            animationTimer.setCoalesce(true);
+            animationTimer.start();
+        }
+
+        @Override
+        protected void stopAnimationTimer() {
+            if (animationTimer != null) {
+                animationTimer.stop();
+                animationTimer = null;
+            }
+        }
+
+        @Override
+        protected void paintDeterminate(Graphics graphics, JComponent component) {
+            JProgressBar bar = (JProgressBar) component;
+            Rectangle rail = getRailBounds(bar);
+            Graphics2D g2 = createGraphics(graphics);
+            try {
+                paintRail(g2, bar, rail);
+                int progressWidth = (int) Math.round(rail.width * bar.getPercentComplete());
+                if (progressWidth > 0) {
+                    paintSegment(g2, rail.x, rail.y, progressWidth, bar.getForeground());
+                }
+            } finally {
+                g2.dispose();
+            }
+        }
+
+        @Override
+        protected void paintIndeterminate(Graphics graphics, JComponent component) {
+            JProgressBar bar = (JProgressBar) component;
+            Rectangle rail = getRailBounds(bar);
+            Graphics2D g2 = createGraphics(graphics);
+            try {
+                paintRail(g2, bar, rail);
+                if (rail.width <= 0) {
+                    return;
+                }
+                int sliderWidth = Math.max(TRACK_HEIGHT * 3, (int) Math.round(rail.width * SLIDER_WIDTH_RATIO));
+                long elapsedMillis = (System.nanoTime() - animationStartNanos) / 1_000_000L;
+                double phase = (elapsedMillis % ANIMATION_CYCLE_MILLIS) / (double) ANIMATION_CYCLE_MILLIS;
+                double easedPhase = phase * phase * (3.0 - 2.0 * phase);
+                int sliderX = rail.x - sliderWidth + (int) Math.round((rail.width + sliderWidth) * easedPhase);
+                int start = Math.max(rail.x, sliderX);
+                int end = Math.min(rail.x + rail.width, sliderX + sliderWidth);
+                if (end > start) {
+                    paintSegment(g2, start, rail.y, end - start, bar.getForeground());
+                }
+            } finally {
+                g2.dispose();
+            }
+        }
+
+        private static Rectangle getRailBounds(JProgressBar bar) {
+            Insets insets = bar.getInsets();
+            int width = Math.max(0, bar.getWidth() - insets.left - insets.right);
+            int y = insets.top + Math.max(0, (bar.getHeight() - insets.top - insets.bottom - TRACK_HEIGHT) / 2);
+            return new Rectangle(insets.left, y, width, TRACK_HEIGHT);
+        }
+
+        private static Graphics2D createGraphics(Graphics graphics) {
+            Graphics2D g2 = (Graphics2D) graphics.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            return g2;
+        }
+
+        private static void paintRail(Graphics2D g2, JProgressBar bar, Rectangle rail) {
+            g2.setColor(bar.getBackground());
+            g2.fillRoundRect(rail.x, rail.y, rail.width, rail.height, rail.height, rail.height);
+        }
+
+        private static void paintSegment(Graphics2D g2, int x, int y, int width, Color color) {
+            g2.setColor(color);
+            g2.fillRoundRect(x, y, width, TRACK_HEIGHT, TRACK_HEIGHT, TRACK_HEIGHT);
         }
     }
 }
