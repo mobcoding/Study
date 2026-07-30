@@ -11,6 +11,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import com.toolkit.admob.manager.AdMobManager
 import com.toolkit.admob.manager.AdMobManager.dealConsentActionThen
+import com.toolkit.admob.manager.AdMobManager.initMobileAds
 import com.toolkit.admob.manager.OpenAdMobManager
 import com.zero.base.activity.BaseActivity
 import com.zero.base.util.StorageUtils
@@ -38,7 +39,7 @@ class SplashActivity : BaseActivity<ActivitySplashBinding>(ActivitySplashBinding
 
     override fun initData() {
         window.addFlags(WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
-//        initMobileAds(this, timeFirst)
+        initMobileAds(this, timeFirst)
         viewModel.getCountry().observe(this) { country ->
             Toast.makeText(this@SplashActivity, "IP:${country.ip}", Toast.LENGTH_SHORT).show()
             lifecycleScope.launch {

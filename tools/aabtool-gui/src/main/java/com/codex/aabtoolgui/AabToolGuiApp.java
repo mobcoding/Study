@@ -824,8 +824,10 @@ public final class AabToolGuiApp {
             hintPanel.add(new JLabel("6. 如果日志出现 ProtoDeserialize 或 unknown compound value，通常是 AAB 包本身存在资源问题。"));
 
             JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+            startButton.setPreferredSize(new Dimension(112, 40));
             startButton.addActionListener(e -> startExecution());
             JButton clearButton = new JButton("清空日志");
+            clearButton.setPreferredSize(new Dimension(112, 40));
             clearButton.addActionListener(e -> resetLogArea());
             buttonPanel.add(clearButton);
             buttonPanel.add(startButton);
@@ -1102,9 +1104,10 @@ public final class AabToolGuiApp {
         private void applyAabSelection(Path aabPath) {
             String normalized = aabPath.toAbsolutePath().normalize().toString();
             aabField.setText(normalized);
-            if (outputField.getText().isBlank()) {
-                outputField.setText(deriveOutputPath(expandUserPath(normalized), (InstallMode) Objects.requireNonNull(modeBox.getSelectedItem())).toString());
-            }
+            outputField.setText(deriveOutputPath(
+                expandUserPath(normalized),
+                (InstallMode) Objects.requireNonNull(modeBox.getSelectedItem())
+            ).toString());
         }
 
         private void loadSettings() {
