@@ -13,6 +13,7 @@ New Swing-based AAB installer GUI that wraps official `bundletool` and local `ad
 - Auto-generates a debug keystore when signing fields are blank
 - Auto-detects the newest local Android SDK `aapt2` when available
 - Auto-launches the app after a successful install by default
+- Provides a bottom "一键卸载" action that removes the current AAB's installed package and data without rebuilding an APK set
 - Provides a bottom "卸载重装" action that removes the current AAB's installed package and data before reinstalling it
 - Runs legacy-style checks after `build-apks` by default
 - Reuses a validated local APK-set cache for the same AAB, device configuration, signing key and toolchain; this is enabled by default in Advanced options

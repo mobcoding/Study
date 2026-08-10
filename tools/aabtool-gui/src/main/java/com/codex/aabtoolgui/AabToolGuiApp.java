@@ -192,6 +192,7 @@ public final class AabToolGuiApp {
         private boolean runLegacyChecks;
         private boolean reuseGeneratedApks;
         private boolean uninstallBeforeInstall;
+        private boolean uninstallOnly;
         private boolean autoLaunchAfterInstall;
         private boolean autoUninstallOnSignatureMismatch;
     }
@@ -715,6 +716,7 @@ public final class AabToolGuiApp {
         private final JButton refreshDevicesButton = new JButton("刷新");
         private final JButton advancedToggleButton = new JButton("显示高级选项");
         private final JButton startButton = new JButton("开始");
+        private final JButton uninstallButton = new JButton("一键卸载");
         private final JButton reinstallButton = new JButton("卸载重装");
         private final JLabel progressLabel = new JLabel("就绪");
         private final JProgressBar progressBar = new JProgressBar();
@@ -884,6 +886,9 @@ public final class AabToolGuiApp {
             JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
             startButton.setPreferredSize(new Dimension(112, 40));
             startButton.addActionListener(e -> startExecution());
+            uninstallButton.setPreferredSize(new Dimension(112, 40));
+            uninstallButton.setToolTipText("卸载当前 AAB 对应的已安装应用及其数据。");
+            uninstallButton.addActionListener(e -> startUninstallExecution());
             reinstallButton.setPreferredSize(new Dimension(112, 40));
             reinstallButton.setToolTipText("卸载当前 AAB 对应的已安装应用及其数据后重新安装。");
             reinstallButton.addActionListener(e -> startReinstallExecution());
@@ -891,6 +896,7 @@ public final class AabToolGuiApp {
             clearButton.setPreferredSize(new Dimension(112, 40));
             clearButton.addActionListener(e -> resetLogArea());
             buttonPanel.add(clearButton);
+            buttonPanel.add(uninstallButton);
             buttonPanel.add(reinstallButton);
             buttonPanel.add(startButton);
 
@@ -1251,8 +1257,16 @@ public final class AabToolGuiApp {
             startExecution(true);
         }
 
+        private void startUninstallExecution() {
+            startExecution(false, true);
+        }
+
         private void startExecution(boolean uninstallBeforeInstall) {
-            if (!startButton.isEnabled() || !reinstallButton.isEnabled()) {
+            startExecution(uninstallBeforeInstall, false);
+        }
+
+        private void startExecution(boolean uninstallBeforeInstall, boolean uninstallOnly) {
+            if (!startButton.isEnabled() || !uninstallButton.isEnabled() || !reinstallButton.isEnabled()) {
                 return;
             }
             ToolConfig config = collectConfig();
@@ -1260,12 +1274,14 @@ public final class AabToolGuiApp {
                 return;
             }
             config.uninstallBeforeInstall = uninstallBeforeInstall;
+            config.uninstallOnly = uninstallOnly;
             if (uninstallBeforeInstall) {
                 config.installAfterBuild = true;
                 installAfterBuildBox.setSelected(true);
             }
             saveSettings(config);
             startButton.setEnabled(false);
+            uninstallButton.setEnabled(false);
             reinstallButton.setEnabled(false);
             resetLogArea();
             beginProgress("正在准备任务...");
@@ -1274,11 +1290,11 @@ public final class AabToolGuiApp {
                 @Override
                 protected ExecutionResult doInBackground() {
                     try {
-                        return runWorkflow(
-                            config,
-                            line -> publish(WorkflowUiEvent.log(line)),
-                            status -> publish(WorkflowUiEvent.progress(status))
-                        );
+                        java.util.function.Consumer<String> logSink = line -> publish(WorkflowUiEvent.log(line));
+                        java.util.function.Consumer<String> progressSink = status -> publish(WorkflowUiEvent.progress(status));
+                        return config.uninstallOnly
+                            ? runUninstallWorkflow(config, logSink, progressSink)
+                            : runWorkflow(config, logSink, progressSink);
                     } catch (Exception e) {
                         return new ExecutionResult(false, e.getMessage());
                     }
@@ -1307,6 +1323,7 @@ public final class AabToolGuiApp {
                 @Override
                 protected void done() {
                     startButton.setEnabled(true);
+                    uninstallButton.setEnabled(true);
                     reinstallButton.setEnabled(true);
                     try {
                         ExecutionResult result = get();
@@ -1750,6 +1767,43 @@ public final class AabToolGuiApp {
 
     private static ExecutionResult runWorkflow(ToolConfig config, java.util.function.Consumer<String> logSink) throws Exception {
         return runWorkflow(config, logSink, status -> {});
+    }
+
+    private static ExecutionResult runUninstallWorkflow(
+        ToolConfig config,
+        java.util.function.Consumer<String> logSink,
+        java.util.function.Consumer<String> progressSink
+    ) throws Exception {
+        progressSink.accept("正在准备卸载环境...");
+        Path aab = expandUserPath(config.aabPath).toAbsolutePath().normalize();
+        if (!Files.isRegularFile(aab)) {
+            throw new IllegalArgumentException("AAB file not found: " + aab);
+        }
+
+        String adbArg = resolveAdb(config.adbPath);
+        String resolvedDeviceId = resolveDeviceId(adbArg, config.mode, true, config.deviceId, logSink);
+        logSink.accept("当前任务：一键卸载");
+        logSink.accept("  AAB 文件：" + aab);
+        logSink.accept("  ADB：" + adbArg);
+        logSink.accept("  设备 ID：" + resolvedDeviceId);
+        logSink.accept("");
+
+        progressSink.accept("正在解析应用包名...");
+        LaunchTarget target = detectLaunchTargetFromBundle(aab);
+        if (target == null || isBlank(target.packageName)) {
+            return new ExecutionResult(false, "无法解析当前 AAB 的包名，已取消卸载。");
+        }
+        logSink.accept("目标包名：" + target.packageName);
+        if (!isPackageInstalled(target.packageName, adbArg, resolvedDeviceId, logSink)) {
+            return new ExecutionResult(true, "设备上未安装该应用，无需卸载。");
+        }
+
+        logSink.accept("正在卸载已安装应用及其数据：" + target.packageName);
+        progressSink.accept("正在卸载应用...");
+        if (!uninstallPackage(target.packageName, adbArg, resolvedDeviceId, logSink)) {
+            return new ExecutionResult(false, "卸载失败，请查看上方日志。");
+        }
+        return new ExecutionResult(true, "卸载完成。");
     }
 
     private static ExecutionResult runWorkflow(
