@@ -9,7 +9,7 @@ $resourcesDir = Join-Path $buildDir "resources"
 $distDir = Join-Path $root "dist"
 $vendorDir = Join-Path $root "vendor"
 $bundletoolJar = Join-Path $vendorDir "bundletool-all-1.18.3.jar"
-$appJar = Join-Path $distDir "aabtool-gui-2.0.jar"
+$appJar = Join-Path $distDir "aabtool-gui-3.0.jar"
 $launcher = Join-Path $distDir "launch-aabtool-gui.bat"
 $cliLauncher = Join-Path $distDir "launch-aabtool-cli.bat"
 $manifest = Join-Path $buildDir "manifest.mf"
@@ -55,7 +55,7 @@ if defined JAVA_HOME (
 ) else (
   set JAVA_CMD=java
 )
-"%JAVA_CMD%" -jar "%SCRIPT_DIR%aabtool-gui-2.0.jar"
+"%JAVA_CMD%" -jar "%SCRIPT_DIR%aabtool-gui-3.0.jar"
 "@ | Set-Content -Path $launcher -Encoding ascii
 
 @"
@@ -67,7 +67,7 @@ if defined JAVA_HOME (
 ) else (
   set JAVA_CMD=java
 )
-"%JAVA_CMD%" -jar "%SCRIPT_DIR%aabtool-gui-2.0.jar" %*
+"%JAVA_CMD%" -jar "%SCRIPT_DIR%aabtool-gui-3.0.jar" %*
 "@ | Set-Content -Path $cliLauncher -Encoding ascii
 
 Write-Host "Built:"

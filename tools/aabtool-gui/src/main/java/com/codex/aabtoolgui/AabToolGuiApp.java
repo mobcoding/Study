@@ -25,6 +25,8 @@ import javax.swing.JComponent;
 import javax.swing.plaf.basic.BasicProgressBarUI;
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Component;
+import java.awt.Container;
 import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
@@ -70,6 +72,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
+import java.util.zip.ZipFile;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.swing.text.BadLocationException;
 import org.w3c.dom.Document;
@@ -78,7 +81,7 @@ import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
 public final class AabToolGuiApp {
-    private static final String APP_NAME = "AAB Tool GUI 2.0";
+    private static final String APP_NAME = "AAB Tool GUI 3.0";
     private static final String BUNDLETOOL_NAME = "bundletool-all-1.18.3.jar";
     private static final String BUNDLED_BUNDLETOOL_RESOURCE = "/embedded/" + BUNDLETOOL_NAME;
     private static final String DEBUG_ALIAS = "aab_debug";
@@ -128,6 +131,7 @@ public final class AabToolGuiApp {
     private static final Color SUCCESS_PROGRESS_COLOR = new Color(39, 136, 93);
     private static final Color FAILURE_PROGRESS_COLOR = new Color(190, 76, 76);
     private static final Color PROGRESS_TRACK_COLOR = new Color(224, 229, 235);
+    private static final String APKS_CACHE_SCHEMA_VERSION = "1";
     private static volatile Path preferredJavaBinary;
 
     private AabToolGuiApp() {
@@ -186,6 +190,8 @@ public final class AabToolGuiApp {
         private boolean allowDowngrade;
         private boolean grantRuntimePermissions;
         private boolean runLegacyChecks;
+        private boolean reuseGeneratedApks;
+        private boolean uninstallBeforeInstall;
         private boolean autoLaunchAfterInstall;
         private boolean autoUninstallOnSignatureMismatch;
     }
@@ -700,13 +706,16 @@ public final class AabToolGuiApp {
         private final JComboBox<InstallMode> modeBox = new JComboBox<>(InstallMode.values());
         private final JCheckBox runLegacyChecksBox = new JCheckBox("静态检查", true);
         private final JCheckBox installAfterBuildBox = new JCheckBox("构建后安装", true);
+        private final JCheckBox reuseGeneratedApksBox = new JCheckBox("复用已生成的 APK 集", true);
         private final JCheckBox autoLaunchAfterInstallBox = new JCheckBox("安装后自动启动", true);
         private final JCheckBox autoUninstallOnSignatureMismatchBox = new JCheckBox("签名冲突时自动卸载重试", false);
         private final JCheckBox allowDowngradeBox = new JCheckBox("允许降级安装", false);
         private final JCheckBox grantRuntimePermissionsBox = new JCheckBox("自动授权运行时权限", false);
+        private final JCheckBox autoInstallAfterDropBox = new JCheckBox("拖放后自动安装", true);
         private final JButton refreshDevicesButton = new JButton("刷新");
         private final JButton advancedToggleButton = new JButton("显示高级选项");
         private final JButton startButton = new JButton("开始");
+        private final JButton reinstallButton = new JButton("卸载重装");
         private final JLabel progressLabel = new JLabel("就绪");
         private final JProgressBar progressBar = new JProgressBar();
         private final JTextArea logArea = new JTextArea(26, 88);
@@ -730,7 +739,6 @@ public final class AabToolGuiApp {
         private void buildUi() {
             setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
             setLayout(new BorderLayout(10, 10));
-            installDropSupport();
 
             JPanel root = new JPanel(new BorderLayout(10, 10));
             root.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
@@ -739,6 +747,7 @@ public final class AabToolGuiApp {
             root.add(buildActionPanel(), BorderLayout.SOUTH);
 
             add(root, BorderLayout.CENTER);
+            installDropSupport(root);
             pack();
             setSize(new Dimension(1280, 720));
             setLocationRelativeTo(null);
@@ -783,9 +792,26 @@ public final class AabToolGuiApp {
             row = addPasswordRow(advancedPanel, c, row, "签名密码", keystorePasswordField);
             row = addFieldRow(advancedPanel, c, row, "签名别名", keyAliasField, null);
             row = addPasswordRow(advancedPanel, c, row, "密钥密码", keyPasswordField);
-            row = addCheckBoxRow(advancedPanel, c, row, "构建选项", runLegacyChecksBox, installAfterBuildBox);
-            row = addCheckBoxRow(advancedPanel, c, row, "安装选项", autoLaunchAfterInstallBox, autoUninstallOnSignatureMismatchBox);
-            addCheckBoxRow(advancedPanel, c, row, "权限选项", allowDowngradeBox, grantRuntimePermissionsBox);
+            row = addCheckBoxRow(
+                advancedPanel,
+                c,
+                row,
+                "构建选项",
+                runLegacyChecksBox,
+                installAfterBuildBox,
+                reuseGeneratedApksBox
+            );
+            row = addCheckBoxRow(
+                advancedPanel,
+                c,
+                row,
+                "安装选项",
+                autoLaunchAfterInstallBox,
+                autoUninstallOnSignatureMismatchBox,
+                autoInstallAfterDropBox
+            );
+            row = addCheckBoxRow(advancedPanel, c, row, "权限选项", allowDowngradeBox, grantRuntimePermissionsBox);
+            autoInstallAfterDropBox.addActionListener(e -> saveAutoInstallAfterDropPreference());
 
             advancedPanel.setVisible(false);
 
@@ -850,7 +876,7 @@ public final class AabToolGuiApp {
             hintPanel.add(new JLabel("说明："));
             hintPanel.add(new JLabel("1. 签名相关留空时，会自动生成默认调试证书。"));
             hintPanel.add(new JLabel("2. 已连接设备模式会按当前连接设备的实际配置生成并安装。"));
-            hintPanel.add(new JLabel("3. 可以直接把 .aab 文件拖到 AAB 输入框中。"));
+            hintPanel.add(new JLabel("3. 可以将 .aab 文件拖到窗口任意位置，默认自动开始安装。"));
             hintPanel.add(new JLabel("4. Device ID 支持下拉选择，也支持手动输入。"));
             hintPanel.add(new JLabel("5. 静态检查会检测中文、AdMob、代码混淆、StringFog 等信息。"));
             hintPanel.add(new JLabel("6. 如果日志出现 ProtoDeserialize 或 unknown compound value，通常是 AAB 包本身存在资源问题。"));
@@ -858,10 +884,14 @@ public final class AabToolGuiApp {
             JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
             startButton.setPreferredSize(new Dimension(112, 40));
             startButton.addActionListener(e -> startExecution());
+            reinstallButton.setPreferredSize(new Dimension(112, 40));
+            reinstallButton.setToolTipText("卸载当前 AAB 对应的已安装应用及其数据后重新安装。");
+            reinstallButton.addActionListener(e -> startReinstallExecution());
             JButton clearButton = new JButton("清空日志");
             clearButton.setPreferredSize(new Dimension(112, 40));
             clearButton.addActionListener(e -> resetLogArea());
             buttonPanel.add(clearButton);
+            buttonPanel.add(reinstallButton);
             buttonPanel.add(startButton);
 
             panel.add(hintPanel, BorderLayout.WEST);
@@ -939,15 +969,18 @@ public final class AabToolGuiApp {
             return row + 1;
         }
 
-        private int addCheckBoxRow(JPanel panel, GridBagConstraints c, int row, String label, JCheckBox first, JCheckBox second) {
+        private int addCheckBoxRow(JPanel panel, GridBagConstraints c, int row, String label, JCheckBox... checkBoxes) {
             c.gridy = row;
             c.gridx = 0;
             c.weightx = 0;
             panel.add(new JLabel(label + ":"), c);
 
             JPanel options = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-            options.add(first);
-            options.add(second);
+            for (JCheckBox checkBox : checkBoxes) {
+                if (checkBox != null) {
+                    options.add(checkBox);
+                }
+            }
 
             c.gridx = 1;
             c.weightx = 1;
@@ -1082,24 +1115,43 @@ public final class AabToolGuiApp {
             return item == null ? "" : item.toString().trim();
         }
 
-        private void installDropSupport() {
-            aabField.setToolTipText("可将 .aab 文件拖到这里，或点击“浏览”。");
-            aabField.setTransferHandler(new TransferHandler() {
+        private void installDropSupport(JComponent root) {
+            aabField.setToolTipText("可将 .aab 文件拖到窗口任意位置，或点击“浏览”。");
+            installDropSupportRecursively(root);
+        }
+
+        private void installDropSupportRecursively(Component component) {
+            if (component instanceof JComponent target) {
+                TransferHandler existingHandler = target.getTransferHandler();
+                target.setTransferHandler(createAabDropHandler(existingHandler));
+            }
+            if (component instanceof Container container) {
+                for (Component child : container.getComponents()) {
+                    installDropSupportRecursively(child);
+                }
+            }
+        }
+
+        private TransferHandler createAabDropHandler(TransferHandler fallbackHandler) {
+            return new TransferHandler() {
                 @Override
                 public boolean canImport(TransferSupport support) {
-                    if (!support.isDrop()) {
-                        return false;
+                    if (support.isDrop() && support.isDataFlavorSupported(DataFlavor.javaFileListFlavor)) {
+                        if (!startButton.isEnabled()) {
+                            return false;
+                        }
+                        support.setDropAction(COPY);
+                        return true;
                     }
-                    if (!support.isDataFlavorSupported(DataFlavor.javaFileListFlavor)) {
-                        return false;
-                    }
-                    support.setDropAction(COPY);
-                    return true;
+                    return fallbackHandler != null && fallbackHandler.canImport(support);
                 }
 
                 @Override
                 public boolean importData(TransferSupport support) {
-                    if (!canImport(support)) {
+                    if (!support.isDrop() || !support.isDataFlavorSupported(DataFlavor.javaFileListFlavor)) {
+                        return fallbackHandler != null && fallbackHandler.importData(support);
+                    }
+                    if (!startButton.isEnabled()) {
                         return false;
                     }
                     try {
@@ -1120,6 +1172,9 @@ public final class AabToolGuiApp {
                             return false;
                         }
                         applyAabSelection(dropped);
+                        if (autoInstallAfterDropBox.isSelected()) {
+                            SwingUtilities.invokeLater(MainFrame.this::startExecution);
+                        }
                         return true;
                     } catch (Exception e) {
                         JOptionPane.showMessageDialog(
@@ -1131,7 +1186,7 @@ public final class AabToolGuiApp {
                         return false;
                     }
                 }
-            });
+            };
         }
 
         private void applyAabSelection(Path aabPath) {
@@ -1154,10 +1209,17 @@ public final class AabToolGuiApp {
             modeBox.setSelectedItem(InstallMode.valueOf(settings.get("mode", InstallMode.CONNECTED_DEVICE.name())));
             runLegacyChecksBox.setSelected(settings.getBoolean("runLegacyChecks", true));
             installAfterBuildBox.setSelected(settings.getBoolean("installAfterBuild", true));
+            reuseGeneratedApksBox.setSelected(settings.getBoolean("reuseGeneratedApks", true));
             autoLaunchAfterInstallBox.setSelected(settings.getBoolean("autoLaunchAfterInstall", true));
             autoUninstallOnSignatureMismatchBox.setSelected(settings.getBoolean("autoUninstallOnSignatureMismatch", false));
             allowDowngradeBox.setSelected(settings.getBoolean("allowDowngrade", false));
             grantRuntimePermissionsBox.setSelected(false);
+            autoInstallAfterDropBox.setSelected(settings.getBoolean("autoInstallAfterDrop", true));
+        }
+
+        private void saveAutoInstallAfterDropPreference() {
+            settings.putBoolean("autoInstallAfterDrop", autoInstallAfterDropBox.isSelected());
+            settings.save();
         }
 
         private void saveSettings(ToolConfig config) {
@@ -1172,20 +1234,39 @@ public final class AabToolGuiApp {
             settings.put("mode", config.mode.name());
             settings.putBoolean("runLegacyChecks", config.runLegacyChecks);
             settings.putBoolean("installAfterBuild", config.installAfterBuild);
+            settings.putBoolean("reuseGeneratedApks", config.reuseGeneratedApks);
             settings.putBoolean("autoLaunchAfterInstall", config.autoLaunchAfterInstall);
             settings.putBoolean("autoUninstallOnSignatureMismatch", config.autoUninstallOnSignatureMismatch);
             settings.putBoolean("allowDowngrade", config.allowDowngrade);
             settings.putBoolean("grantRuntimePermissions", config.grantRuntimePermissions);
+            settings.putBoolean("autoInstallAfterDrop", autoInstallAfterDropBox.isSelected());
             settings.save();
         }
 
         private void startExecution() {
+            startExecution(false);
+        }
+
+        private void startReinstallExecution() {
+            startExecution(true);
+        }
+
+        private void startExecution(boolean uninstallBeforeInstall) {
+            if (!startButton.isEnabled() || !reinstallButton.isEnabled()) {
+                return;
+            }
             ToolConfig config = collectConfig();
             if (config == null) {
                 return;
             }
+            config.uninstallBeforeInstall = uninstallBeforeInstall;
+            if (uninstallBeforeInstall) {
+                config.installAfterBuild = true;
+                installAfterBuildBox.setSelected(true);
+            }
             saveSettings(config);
             startButton.setEnabled(false);
+            reinstallButton.setEnabled(false);
             resetLogArea();
             beginProgress("正在准备任务...");
 
@@ -1226,6 +1307,7 @@ public final class AabToolGuiApp {
                 @Override
                 protected void done() {
                     startButton.setEnabled(true);
+                    reinstallButton.setEnabled(true);
                     try {
                         ExecutionResult result = get();
                         completeProgress(result.success);
@@ -1274,6 +1356,7 @@ public final class AabToolGuiApp {
             config.mode = (InstallMode) Objects.requireNonNull(modeBox.getSelectedItem());
             config.runLegacyChecks = runLegacyChecksBox.isSelected();
             config.installAfterBuild = installAfterBuildBox.isSelected();
+            config.reuseGeneratedApks = reuseGeneratedApksBox.isSelected();
             config.autoLaunchAfterInstall = autoLaunchAfterInstallBox.isSelected();
             config.autoUninstallOnSignatureMismatch = autoUninstallOnSignatureMismatchBox.isSelected();
             config.allowDowngrade = allowDowngradeBox.isSelected();
@@ -1698,6 +1781,8 @@ public final class AabToolGuiApp {
         logSink.accept("  ADB：" + adbArg);
         logSink.accept("  安装模式：" + config.mode);
         logSink.accept("  静态检查：" + (config.runLegacyChecks ? "开启" : "关闭"));
+        logSink.accept("  复用 APK 集：" + (config.reuseGeneratedApks ? "开启" : "关闭"));
+        logSink.accept("  卸载重装：" + (config.uninstallBeforeInstall ? "开启" : "关闭"));
         logSink.accept("  安装后自动启动：" + (config.autoLaunchAfterInstall ? "开启" : "关闭"));
         logSink.accept("  签名冲突自动卸载重试：" + (config.autoUninstallOnSignatureMismatch ? "开启" : "关闭"));
         if (aapt2 != null) {
@@ -1711,6 +1796,210 @@ public final class AabToolGuiApp {
         logSink.accept("");
 
         logSink.accept("  AAB SHA-256: " + aabSha256);
+        ApksCacheContext cacheContext = createApksCacheContext(
+            config,
+            aabSha256,
+            bundletool,
+            aapt2,
+            signing,
+            javaBin,
+            adbArg,
+            resolvedDeviceId,
+            logSink,
+            progressSink
+        );
+        Path apks = output;
+        boolean reusedCachedApks = false;
+        boolean legacyChecksComplete = false;
+        boolean cacheMetadataNeedsUpdate = false;
+        if (cacheContext != null) {
+            CachedApks cachedApks = findCachedApks(cacheContext, logSink);
+            if (cachedApks != null) {
+                apks = cachedApks.path;
+                reusedCachedApks = true;
+                legacyChecksComplete = cachedApks.legacyChecksComplete;
+                logSink.accept("命中 APK 集缓存，跳过 build-apks：" + apks);
+                logSink.accept("");
+                if (!config.installAfterBuild) {
+                    try {
+                        materializeCachedApks(apks, output, logSink);
+                        apks = output;
+                    } catch (IOException e) {
+                        logSink.accept("缓存 APK 集无法写入当前输出路径，将重新生成：" + e.getMessage());
+                        logSink.accept("");
+                        apks = output;
+                        reusedCachedApks = false;
+                    }
+                }
+            } else {
+                logSink.accept("未命中有效 APK 集缓存，将生成新的 APK 集。");
+                logSink.accept("");
+            }
+        }
+
+        if (!reusedCachedApks) {
+            if (!buildApks(
+                config,
+                aab,
+                output,
+                bundletool,
+                aapt2,
+                signing,
+                javaBin,
+                adbArg,
+                resolvedDeviceId,
+                logSink,
+                progressSink
+            )) {
+                return new ExecutionResult(false, "构建失败，请查看上方日志。");
+            }
+            apks = output;
+            cacheMetadataNeedsUpdate = true;
+        }
+
+        if (config.runLegacyChecks && !legacyChecksComplete) {
+            progressSink.accept("正在执行静态检查...");
+            runLegacyChecks(aab, apks, aapt2, logSink);
+            legacyChecksComplete = true;
+            cacheMetadataNeedsUpdate = true;
+        } else if (config.runLegacyChecks) {
+            logSink.accept("APK 集缓存命中，内容已校验一致，本次跳过重复静态检查。");
+            logSink.accept("");
+        }
+        if (cacheContext != null && cacheMetadataNeedsUpdate) {
+            Path cacheSource = reusedCachedApks ? cacheContext.apksFile : apks;
+            saveApksToCache(cacheSource, cacheContext, legacyChecksComplete, logSink);
+        }
+
+        if (!config.installAfterBuild) {
+            String message = reusedCachedApks ? "APK 集已从缓存复用：" + output : "APK 集构建完成：" + output;
+            return new ExecutionResult(true, message);
+        }
+
+        progressSink.accept("正在解析应用安装信息...");
+        LaunchTarget launchTarget = resolveLaunchTarget(aab, apks, aapt2, logSink);
+        boolean packageInstalled = false;
+        if (!isBlank(resolvedDeviceId) && launchTarget != null && !isBlank(launchTarget.packageName)) {
+            packageInstalled = isPackageInstalled(launchTarget.packageName, adbArg, resolvedDeviceId, logSink);
+            if (packageInstalled) {
+                logSink.accept("设备上已安装同包名应用：" + launchTarget.packageName);
+                if (!config.uninstallBeforeInstall && !config.autoUninstallOnSignatureMismatch) {
+                    logSink.accept("提示：如果旧应用签名不同，安装时可能出现 UPDATE_INCOMPATIBLE。");
+                }
+                logSink.accept("");
+            }
+        }
+        if (config.uninstallBeforeInstall) {
+            if (isBlank(resolvedDeviceId)) {
+                return new ExecutionResult(false, "卸载重装需要连接一台 Android 设备。");
+            }
+            if (launchTarget == null || isBlank(launchTarget.packageName)) {
+                return new ExecutionResult(false, "无法解析当前 AAB 的包名，已取消卸载重装。");
+            }
+            if (packageInstalled) {
+                logSink.accept("正在卸载已安装应用及其数据：" + launchTarget.packageName);
+                progressSink.accept("正在卸载旧应用...");
+                if (!uninstallPackage(launchTarget.packageName, adbArg, resolvedDeviceId, logSink)) {
+                    return new ExecutionResult(false, "卸载旧应用失败，已取消重装。");
+                }
+                logSink.accept("旧应用已卸载，正在准备重新安装。");
+                logSink.accept("");
+            } else {
+                logSink.accept("设备上未检测到同包名应用，跳过卸载并继续安装。");
+                logSink.accept("");
+            }
+        }
+
+        StringBuilder installOutput = new StringBuilder();
+        List<String> installCommand = createInstallApksCommand(
+            config,
+            javaBin,
+            bundletool,
+            apks,
+            resolvedDeviceId
+        );
+
+        progressSink.accept("正在安装 APK 集，请稍候...");
+        int installExit = runBundletoolCommand(installCommand, installOutput, logSink, adbArg);
+        if (installExit != 0
+            && reusedCachedApks
+            && cacheContext != null
+            && containsDeviceConfigurationMismatch(installOutput.toString())) {
+            logSink.accept("缓存 APK 集与当前设备配置不匹配，已失效，正在重新生成一次...");
+            logSink.accept("");
+            invalidateCachedApks(cacheContext, logSink);
+            if (!buildApks(
+                config,
+                aab,
+                output,
+                bundletool,
+                aapt2,
+                signing,
+                javaBin,
+                adbArg,
+                resolvedDeviceId,
+                logSink,
+                progressSink
+            )) {
+                return new ExecutionResult(false, "缓存失效后的 APK 集重新构建失败，请查看上方日志。");
+            }
+            apks = output;
+            reusedCachedApks = false;
+            saveApksToCache(output, cacheContext, legacyChecksComplete, logSink);
+            launchTarget = resolveLaunchTarget(aab, apks, aapt2, logSink);
+            installOutput.setLength(0);
+            installCommand = createInstallApksCommand(config, javaBin, bundletool, apks, resolvedDeviceId);
+            progressSink.accept("正在安装重新生成的 APK 集，请稍候...");
+            installExit = runBundletoolCommand(installCommand, installOutput, logSink, adbArg);
+        }
+        if (installExit != 0
+            && containsUpdateIncompatible(installOutput.toString())
+            && config.autoUninstallOnSignatureMismatch
+            && launchTarget != null
+            && !isBlank(launchTarget.packageName)) {
+            logSink.accept("检测到 INSTALL_FAILED_UPDATE_INCOMPATIBLE，正在卸载旧应用并重试一次...");
+            progressSink.accept("签名冲突，正在卸载旧应用...");
+            boolean uninstallOk = uninstallPackage(launchTarget.packageName, adbArg, resolvedDeviceId, logSink);
+            if (uninstallOk) {
+                installOutput.setLength(0);
+                progressSink.accept("正在重新安装 APK 集，请稍候...");
+                installExit = runBundletoolCommand(installCommand, installOutput, logSink, adbArg);
+            } else {
+                logSink.accept("自动卸载失败，已跳过重试安装。");
+                logSink.accept("");
+            }
+        }
+        if (installExit != 0) {
+            emitHints(installOutput.toString(), logSink);
+            return new ExecutionResult(false, "安装失败，请查看上方日志。");
+        }
+
+        String launchStatus = "";
+        if (config.autoLaunchAfterInstall) {
+            progressSink.accept("正在启动应用...");
+            launchStatus = launchInstalledApp(apks, aapt2, adbArg, resolvedDeviceId, launchTarget, logSink);
+        }
+
+        if (!launchStatus.isBlank()) {
+            String message = config.uninstallBeforeInstall ? "卸载重装完成。 " : "安装完成。 ";
+            return new ExecutionResult(true, message + launchStatus);
+        }
+        return new ExecutionResult(true, config.uninstallBeforeInstall ? "卸载重装完成。" : "安装完成。");
+    }
+
+    private static boolean buildApks(
+        ToolConfig config,
+        Path aab,
+        Path output,
+        Path bundletool,
+        Path aapt2,
+        Signing signing,
+        Path javaBin,
+        String adbArg,
+        String resolvedDeviceId,
+        java.util.function.Consumer<String> logSink,
+        java.util.function.Consumer<String> progressSink
+    ) throws Exception {
         progressSink.accept("正在构建 APK 集...");
         StringBuilder buildOutput = new StringBuilder();
         List<String> buildCommand = new ArrayList<>();
@@ -1742,39 +2031,25 @@ public final class AabToolGuiApp {
         int buildExit = runBundletoolCommand(buildCommand, buildOutput, logSink, adbArg);
         if (buildExit != 0) {
             emitHints(buildOutput.toString(), logSink);
-            return new ExecutionResult(false, "构建失败，请查看上方日志。");
+            return false;
         }
+        return true;
+    }
 
-        if (config.runLegacyChecks) {
-            progressSink.accept("正在执行静态检查...");
-            runLegacyChecks(aab, output, aapt2, logSink);
-        }
-
-        if (!config.installAfterBuild) {
-            return new ExecutionResult(true, "APK 集构建完成：" + output);
-        }
-
-        progressSink.accept("正在解析应用安装信息...");
-        LaunchTarget launchTarget = resolveLaunchTarget(aab, output, aapt2, logSink);
-        if (!isBlank(resolvedDeviceId) && launchTarget != null && !isBlank(launchTarget.packageName)) {
-            boolean installed = isPackageInstalled(launchTarget.packageName, adbArg, resolvedDeviceId, logSink);
-            if (installed) {
-                logSink.accept("设备上已安装同包名应用：" + launchTarget.packageName);
-                if (!config.autoUninstallOnSignatureMismatch) {
-                    logSink.accept("提示：如果旧应用签名不同，安装时可能出现 UPDATE_INCOMPATIBLE。");
-                }
-                logSink.accept("");
-            }
-        }
-
-        StringBuilder installOutput = new StringBuilder();
+    private static List<String> createInstallApksCommand(
+        ToolConfig config,
+        Path javaBin,
+        Path bundletool,
+        Path apks,
+        String resolvedDeviceId
+    ) {
         List<String> installCommand = new ArrayList<>();
         installCommand.add(javaBin.toString());
         addBundletoolJvmOptions(installCommand);
         installCommand.add("-jar");
         installCommand.add(bundletool.toString());
         installCommand.add("install-apks");
-        installCommand.add("--apks=" + output);
+        installCommand.add("--apks=" + apks);
         if (!resolvedDeviceId.isBlank()) {
             installCommand.add("--device-id=" + resolvedDeviceId);
         }
@@ -1784,41 +2059,251 @@ public final class AabToolGuiApp {
         if (config.grantRuntimePermissions) {
             installCommand.add("--grant-runtime-permissions");
         }
+        return installCommand;
+    }
 
-        progressSink.accept("正在安装 APK 集，请稍候...");
-        int installExit = runBundletoolCommand(installCommand, installOutput, logSink, adbArg);
-        if (installExit != 0
-            && containsUpdateIncompatible(installOutput.toString())
-            && config.autoUninstallOnSignatureMismatch
-            && launchTarget != null
-            && !isBlank(launchTarget.packageName)) {
-            logSink.accept("检测到 INSTALL_FAILED_UPDATE_INCOMPATIBLE，正在卸载旧应用并重试一次...");
-            progressSink.accept("签名冲突，正在卸载旧应用...");
-            boolean uninstallOk = uninstallPackage(launchTarget.packageName, adbArg, resolvedDeviceId, logSink);
-            if (uninstallOk) {
-                installOutput.setLength(0);
-                progressSink.accept("正在重新安装 APK 集，请稍候...");
-                installExit = runBundletoolCommand(installCommand, installOutput, logSink, adbArg);
-            } else {
-                logSink.accept("自动卸载失败，已跳过重试安装。");
-                logSink.accept("");
+    private static ApksCacheContext createApksCacheContext(
+        ToolConfig config,
+        String aabSha256,
+        Path bundletool,
+        Path aapt2,
+        Signing signing,
+        Path javaBin,
+        String adbArg,
+        String resolvedDeviceId,
+        java.util.function.Consumer<String> logSink,
+        java.util.function.Consumer<String> progressSink
+    ) {
+        if (!config.reuseGeneratedApks) {
+            return null;
+        }
+
+        try {
+            progressSink.accept("正在检查 APK 集缓存...");
+            String deviceSpecSha256 = config.mode.isConnectedDevice()
+                ? resolveDeviceSpecSha256(bundletool, javaBin, adbArg, resolvedDeviceId, logSink)
+                : "universal";
+            String signingKeystoreSha256 = sha256(Paths.get(signing.keystore));
+            String bundletoolSha256 = sha256(bundletool);
+            String aapt2Sha256 = aapt2 == null ? "none" : sha256(aapt2);
+            String cacheKeyInput = String.join(
+                "\n",
+                "schema=" + APKS_CACHE_SCHEMA_VERSION,
+                "aab=" + aabSha256,
+                "mode=" + config.mode.name(),
+                "deviceSpec=" + deviceSpecSha256,
+                "signingKeystore=" + signingKeystoreSha256,
+                "signingAlias=" + signing.keyAlias,
+                "bundletool=" + bundletoolSha256,
+                "aapt2=" + aapt2Sha256
+            );
+            return new ApksCacheContext(
+                sha256Text(cacheKeyInput),
+                aabSha256,
+                config.mode.name(),
+                deviceSpecSha256,
+                signingKeystoreSha256,
+                signing.keyAlias,
+                bundletoolSha256,
+                aapt2Sha256
+            );
+        } catch (Exception e) {
+            logSink.accept("无法安全验证 APK 集缓存，本次将重新构建：" + e.getMessage());
+            logSink.accept("");
+            return null;
+        }
+    }
+
+    private static String resolveDeviceSpecSha256(
+        Path bundletool,
+        Path javaBin,
+        String adbArg,
+        String resolvedDeviceId,
+        java.util.function.Consumer<String> logSink
+    ) throws Exception {
+        Path cacheRoot = getApksCacheDirectory();
+        Files.createDirectories(cacheRoot);
+        Path deviceSpecFile = Files.createTempFile(cacheRoot, "device-spec-", ".json");
+        try {
+            StringBuilder deviceSpecOutput = new StringBuilder();
+            List<String> command = new ArrayList<>();
+            command.add(javaBin.toString());
+            addBundletoolJvmOptions(command);
+            command.add("-jar");
+            command.add(bundletool.toString());
+            command.add("get-device-spec");
+            command.add("--output=" + deviceSpecFile);
+            command.add("--overwrite");
+            if (!isBlank(adbArg)) {
+                command.add("--adb=" + adbArg);
             }
+            if (!isBlank(resolvedDeviceId)) {
+                command.add("--device-id=" + resolvedDeviceId);
+            }
+            int exit = runBundletoolCommand(command, deviceSpecOutput, logSink, adbArg);
+            if (exit != 0 || !Files.isRegularFile(deviceSpecFile) || Files.size(deviceSpecFile) == 0) {
+                throw new IOException("bundletool get-device-spec 执行失败。");
+            }
+            return sha256(deviceSpecFile);
+        } finally {
+            Files.deleteIfExists(deviceSpecFile);
         }
-        if (installExit != 0) {
-            emitHints(installOutput.toString(), logSink);
-            return new ExecutionResult(false, "安装失败，请查看上方日志。");
-        }
+    }
 
-        String launchStatus = "";
-        if (config.autoLaunchAfterInstall) {
-            progressSink.accept("正在启动应用...");
-            launchStatus = launchInstalledApp(output, aapt2, adbArg, resolvedDeviceId, launchTarget, logSink);
+    private static CachedApks findCachedApks(
+        ApksCacheContext context,
+        java.util.function.Consumer<String> logSink
+    ) {
+        if (!Files.isRegularFile(context.apksFile) || !Files.isRegularFile(context.metadataFile)) {
+            return null;
         }
+        try {
+            Properties metadata = new Properties();
+            try (var input = Files.newInputStream(context.metadataFile)) {
+                metadata.load(input);
+            }
+            if (!context.matches(metadata)) {
+                logSink.accept("APK 集缓存元数据与当前环境不一致，已忽略旧缓存。");
+                return null;
+            }
+            if (!isValidApksArchive(context.apksFile)) {
+                logSink.accept("APK 集缓存文件不完整或已损坏，已忽略旧缓存。");
+                return null;
+            }
+            return new CachedApks(
+                context.apksFile,
+                Boolean.parseBoolean(metadata.getProperty("legacyChecksComplete", "false"))
+            );
+        } catch (IOException e) {
+            logSink.accept("读取 APK 集缓存失败，已重新生成：" + e.getMessage());
+            return null;
+        }
+    }
 
-        if (!launchStatus.isBlank()) {
-            return new ExecutionResult(true, "安装完成。 " + launchStatus);
+    private static boolean isValidApksArchive(Path apksFile) {
+        try (ZipFile zipFile = new ZipFile(apksFile.toFile())) {
+            boolean hasToc = false;
+            boolean hasApk = false;
+            var entries = zipFile.entries();
+            while (entries.hasMoreElements()) {
+                ZipEntry entry = entries.nextElement();
+                String name = entry.getName();
+                hasToc |= "toc.pb".equals(name);
+                hasApk |= !entry.isDirectory() && name.toLowerCase(Locale.ROOT).endsWith(".apk");
+                if (hasToc && hasApk) {
+                    return true;
+                }
+            }
+            return false;
+        } catch (IOException e) {
+            return false;
         }
-        return new ExecutionResult(true, "安装完成。");
+    }
+
+    private static void saveApksToCache(
+        Path generatedApks,
+        ApksCacheContext context,
+        boolean legacyChecksComplete,
+        java.util.function.Consumer<String> logSink
+    ) {
+        try {
+            Files.createDirectories(context.apksFile.getParent());
+            if (!sameNormalizedPath(generatedApks, context.apksFile)) {
+                Path temporaryApks = Files.createTempFile(
+                    context.apksFile.getParent(),
+                    context.cacheKey + "-",
+                    ".apks.part"
+                );
+                try {
+                    Files.copy(generatedApks, temporaryApks, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                    replaceFile(temporaryApks, context.apksFile);
+                } finally {
+                    Files.deleteIfExists(temporaryApks);
+                }
+            }
+
+            Properties metadata = context.toProperties();
+            metadata.setProperty("apksPath", context.apksFile.toString());
+            metadata.setProperty("legacyChecksComplete", Boolean.toString(legacyChecksComplete));
+            metadata.setProperty("createdAtEpochMillis", Long.toString(System.currentTimeMillis()));
+            Path temporaryMetadata = Files.createTempFile(
+                context.metadataFile.getParent(),
+                context.cacheKey + "-",
+                ".properties.part"
+            );
+            try {
+                try (var output = Files.newOutputStream(temporaryMetadata)) {
+                    metadata.store(output, "AAB Tool GUI APK set cache");
+                }
+                replaceFile(temporaryMetadata, context.metadataFile);
+            } finally {
+                Files.deleteIfExists(temporaryMetadata);
+            }
+            logSink.accept("已保存 APK 集缓存：" + context.apksFile);
+            logSink.accept("");
+        } catch (IOException e) {
+            logSink.accept("APK 集缓存写入失败，不影响本次安装：" + e.getMessage());
+            logSink.accept("");
+        }
+    }
+
+    private static void materializeCachedApks(
+        Path cachedApks,
+        Path output,
+        java.util.function.Consumer<String> logSink
+    ) throws IOException {
+        if (sameNormalizedPath(cachedApks, output)) {
+            return;
+        }
+        Files.createDirectories(output.getParent());
+        Path temporaryApks = Files.createTempFile(output.getParent(), output.getFileName().toString() + "-", ".apks.part");
+        try {
+            Files.copy(cachedApks, temporaryApks, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            replaceFile(temporaryApks, output);
+        } finally {
+            Files.deleteIfExists(temporaryApks);
+        }
+        logSink.accept("已将缓存 APK 集写入输出路径：" + output);
+        logSink.accept("");
+    }
+
+    private static void invalidateCachedApks(
+        ApksCacheContext context,
+        java.util.function.Consumer<String> logSink
+    ) {
+        try {
+            Files.deleteIfExists(context.apksFile);
+            Files.deleteIfExists(context.metadataFile);
+        } catch (IOException e) {
+            logSink.accept("缓存文件清理失败，将直接覆盖写入：" + e.getMessage());
+        }
+    }
+
+    private static void replaceFile(Path source, Path target) throws IOException {
+        try {
+            Files.move(
+                source,
+                target,
+                java.nio.file.StandardCopyOption.ATOMIC_MOVE,
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING
+            );
+        } catch (java.nio.file.AtomicMoveNotSupportedException ignored) {
+            Files.move(source, target, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        }
+    }
+
+    private static boolean sameNormalizedPath(Path first, Path second) {
+        return first.toAbsolutePath().normalize().equals(second.toAbsolutePath().normalize());
+    }
+
+    private static boolean containsDeviceConfigurationMismatch(String output) {
+        String lower = output.toLowerCase(Locale.ROOT);
+        return lower.contains("no apks found for the given device")
+            || lower.contains("no matching apks")
+            || lower.contains("no matching variant")
+            || lower.contains("not compatible with the connected device")
+            || lower.contains("device configuration")
+            || lower.contains("device spec");
     }
 
     private static String launchInstalledApp(
@@ -3305,6 +3790,7 @@ public final class AabToolGuiApp {
         config.allowDowngrade = false;
         config.grantRuntimePermissions = false;
         config.runLegacyChecks = true;
+        config.reuseGeneratedApks = true;
         config.autoLaunchAfterInstall = true;
         config.autoUninstallOnSignatureMismatch = false;
 
@@ -3360,6 +3846,9 @@ public final class AabToolGuiApp {
                 case "--no-analysis":
                     config.runLegacyChecks = false;
                     break;
+                case "--no-reuse-apks":
+                    config.reuseGeneratedApks = false;
+                    break;
                 case "--no-launch":
                     config.autoLaunchAfterInstall = false;
                     break;
@@ -3391,9 +3880,9 @@ public final class AabToolGuiApp {
     }
 
     private static void printCliHelp() {
-        System.out.println("AAB Tool GUI 2.0 CLI");
+        System.out.println("AAB Tool GUI 3.0 CLI");
         System.out.println("Usage:");
-        System.out.println("  java -jar aabtool-gui-2.0.jar --aab <file.aab> [options]");
+        System.out.println("  java -jar aabtool-gui-3.0.jar --aab <file.aab> [options]");
         System.out.println();
         System.out.println("Options:");
         System.out.println("  --aab <path>                           Required. Input AAB file.");
@@ -3407,6 +3896,7 @@ public final class AabToolGuiApp {
         System.out.println("  --allow-downgrade                      Pass through to install-apks.");
         System.out.println("  --no-grant-runtime-permissions         Disable grant-runtime-permissions.");
         System.out.println("  --no-analysis                          Skip legacy checks after build.");
+        System.out.println("  --no-reuse-apks                        Always rebuild the APK set instead of using cache.");
         System.out.println("  --no-launch                            Do not auto launch the app after install.");
         System.out.println("  --replace-incompatible                 Uninstall existing app and retry if signature mismatch is detected.");
         System.out.println("  --ks <path>                            Optional. Custom keystore path.");
@@ -4177,7 +4667,22 @@ public final class AabToolGuiApp {
 
     private static String sha256(Path file) throws Exception {
         MessageDigest digest = MessageDigest.getInstance("SHA-256");
-        byte[] hash = digest.digest(Files.readAllBytes(file));
+        byte[] buffer = new byte[64 * 1024];
+        try (var input = Files.newInputStream(file)) {
+            int read;
+            while ((read = input.read(buffer)) != -1) {
+                digest.update(buffer, 0, read);
+            }
+        }
+        return toSha256Hex(digest.digest());
+    }
+
+    private static String sha256Text(String value) throws Exception {
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        return toSha256Hex(digest.digest(value.getBytes(StandardCharsets.UTF_8)));
+    }
+
+    private static String toSha256Hex(byte[] hash) {
         StringBuilder builder = new StringBuilder(hash.length * 2);
         for (byte b : hash) {
             builder.append(String.format("%02x", b));
@@ -4246,6 +4751,10 @@ public final class AabToolGuiApp {
         return Paths.get(System.getProperty("user.home"), ".aabtool-gui");
     }
 
+    private static Path getApksCacheDirectory() {
+        return getStateDir().resolve("cache").resolve("apks");
+    }
+
     private static boolean isWindows() {
         return System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win");
     }
@@ -4256,6 +4765,79 @@ public final class AabToolGuiApp {
 
     private static boolean isBlank(String value) {
         return value == null || value.isBlank();
+    }
+
+    private static final class CachedApks {
+        private final Path path;
+        private final boolean legacyChecksComplete;
+
+        private CachedApks(Path path, boolean legacyChecksComplete) {
+            this.path = path;
+            this.legacyChecksComplete = legacyChecksComplete;
+        }
+    }
+
+    private static final class ApksCacheContext {
+        private final String cacheKey;
+        private final String aabSha256;
+        private final String mode;
+        private final String deviceSpecSha256;
+        private final String signingKeystoreSha256;
+        private final String signingKeyAlias;
+        private final String bundletoolSha256;
+        private final String aapt2Sha256;
+        private final Path apksFile;
+        private final Path metadataFile;
+
+        private ApksCacheContext(
+            String cacheKey,
+            String aabSha256,
+            String mode,
+            String deviceSpecSha256,
+            String signingKeystoreSha256,
+            String signingKeyAlias,
+            String bundletoolSha256,
+            String aapt2Sha256
+        ) {
+            this.cacheKey = cacheKey;
+            this.aabSha256 = aabSha256;
+            this.mode = mode;
+            this.deviceSpecSha256 = deviceSpecSha256;
+            this.signingKeystoreSha256 = signingKeystoreSha256;
+            this.signingKeyAlias = signingKeyAlias;
+            this.bundletoolSha256 = bundletoolSha256;
+            this.aapt2Sha256 = aapt2Sha256;
+            Path cacheDirectory = getApksCacheDirectory();
+            this.apksFile = cacheDirectory.resolve(cacheKey + ".apks");
+            this.metadataFile = cacheDirectory.resolve(cacheKey + ".properties");
+        }
+
+        private Properties toProperties() {
+            Properties properties = new Properties();
+            properties.setProperty("schemaVersion", APKS_CACHE_SCHEMA_VERSION);
+            properties.setProperty("cacheKey", cacheKey);
+            properties.setProperty("aabSha256", aabSha256);
+            properties.setProperty("mode", mode);
+            properties.setProperty("deviceSpecSha256", deviceSpecSha256);
+            properties.setProperty("signingKeystoreSha256", signingKeystoreSha256);
+            properties.setProperty("signingKeyAlias", signingKeyAlias);
+            properties.setProperty("bundletoolSha256", bundletoolSha256);
+            properties.setProperty("aapt2Sha256", aapt2Sha256);
+            return properties;
+        }
+
+        private boolean matches(Properties properties) {
+            return APKS_CACHE_SCHEMA_VERSION.equals(properties.getProperty("schemaVersion"))
+                && cacheKey.equals(properties.getProperty("cacheKey"))
+                && aabSha256.equals(properties.getProperty("aabSha256"))
+                && mode.equals(properties.getProperty("mode"))
+                && deviceSpecSha256.equals(properties.getProperty("deviceSpecSha256"))
+                && signingKeystoreSha256.equals(properties.getProperty("signingKeystoreSha256"))
+                && signingKeyAlias.equals(properties.getProperty("signingKeyAlias"))
+                && bundletoolSha256.equals(properties.getProperty("bundletoolSha256"))
+                && aapt2Sha256.equals(properties.getProperty("aapt2Sha256"))
+                && apksFile.toString().equals(properties.getProperty("apksPath"));
+        }
     }
 
     private static final class Signing {

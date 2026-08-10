@@ -6,4 +6,4 @@ if defined JAVA_HOME (
 ) else (
   set JAVA_CMD=java
 )
-"%JAVA_CMD%" -jar "%SCRIPT_DIR%aabtool-gui-2.0.jar" %*
+"%JAVA_CMD%" -jar "%SCRIPT_DIR%aabtool-gui-3.0.jar" %*
