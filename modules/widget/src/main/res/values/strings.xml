@@ -1,0 +1,22 @@
+<resources>
+    <string name="widget_title">Study</string>
+    <string name="app_widgets">App Widgets</string>
+    <string name="first_widget_msg">Use widgets to view device status with just one tap</string>
+    <string name="_4_x_2_widgets">4 x 2 widgets</string>
+    <string name="Add_to_the_home_screen">Add to the home screen</string>
+    <string name="manually_add_widgets">Add widgets manually</string>
+    <string name="click_to_see_how_to_add_manually">Click here to see how to add manually</string>
+    <string name="long_press_the_home_screen">Long press the home screen</string>
+    <string name="add_widget_step1">Long press a blank area on the home screen, then choose Widgets to view the desktop widget list.</string>
+    <string name="drag_it_to_the_home_screen">Drag it to the home screen</string>
+    <string name="add_widget_step2">Find Study, then long press and drag the widget to your home screen.</string>
+    <string name="memory_brief">MEM</string>
+    <string name="disk_brief">DISK</string>
+    <string name="running_apps">Running Apps</string>
+    <string name="widget_loading">Loading</string>
+    <string name="widget_add_failed">Unable to add widget</string>
+    <string name="widget_add_failed_message">Your launcher does not support automatic widget addition. View the manual instructions instead.</string>
+    <string name="widget_learn_more">Learn More</string>
+    <string name="widget_service_channel">Desktop widget updates</string>
+    <string name="widget_service_notification">Keeping the desktop widget clock up to date</string>
+</resources>

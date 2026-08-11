@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="white">#FFFFFFFF</color>
+    <color name="colorProgressNormal">#FF1DCD46</color>
+    <color name="colorProgressWarning">#FFF59E0B</color>
+    <color name="colorProgressUrgent">#FFDC2626</color>
+    <color name="widget_surface">#FFF8FAFC</color>
+    <color name="widget_row">#FFFFFFFF</color>
+    <color name="widget_text">#FF172033</color>
+    <color name="widget_muted">#FF64748B</color>
+    <color name="widget_accent">#FF0F766E</color>
+    <color name="widget_warning">#FFD97706</color>
+    <color name="widget_urgent">#FFDC2626</color>
+    <color name="widget_track">#FFE2E8F0</color>
+</resources>

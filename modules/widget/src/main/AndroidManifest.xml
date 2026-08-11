@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+
+    <application>
+        <activity
+            android:name=".DesktopWidgetActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Widget" />
+
+        <activity
+            android:name=".WidgetGuideActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Widget" />
+
+        <receiver
+            android:name=".StudyAppWidgetProvider"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.zero.widget.action.REFRESH" />
+            </intent-filter>
+
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/study_app_widget_info" />
+        </receiver>
+
+        <service
+            android:name=".WidgetClockService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <meta-data
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Keeps the desktop widget clock current while a widget is active." />
+        </service>
+    </application>
+</manifest>

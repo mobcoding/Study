@@ -1,0 +1,220 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/ll_root"
+    android:layout_width="match_parent"
+    android:layout_height="124dp"
+    android:minWidth="311dp"
+    android:background="@drawable/bg_widget_main_figma"
+    android:paddingStart="10dp"
+    android:paddingTop="10dp"
+    android:paddingEnd="10dp"
+    android:paddingBottom="10dp">
+
+    <LinearLayout
+        android:id="@+id/ll_widget_summary"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_alignParentStart="true"
+        android:layout_marginEnd="8dp"
+        android:layout_toStartOf="@id/rl_time"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/tv_widget_title"
+            android:layout_width="match_parent"
+            android:layout_height="18dp"
+            android:fontFamily="sans-serif"
+            android:gravity="center_vertical"
+            android:includeFontPadding="false"
+            android:text="@string/widget_title"
+            android:textColor="#6B7280"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <RelativeLayout
+            android:id="@+id/rl_mem"
+            android:layout_width="match_parent"
+            android:layout_height="20dp"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/bg_widget_main_row">
+
+            <ProgressBar
+                android:id="@+id/pb_mem"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:indeterminate="false"
+                android:max="100"
+                android:progressDrawable="@drawable/bg_widget_main_mem_progress" />
+
+            <ImageView
+                android:id="@+id/iv_mem"
+                android:layout_width="19dp"
+                android:layout_height="19dp"
+                android:layout_alignParentStart="true"
+                android:layout_centerVertical="true"
+                android:layout_marginStart="1dp"
+                android:background="@drawable/bg_widget_main_mem_icon"
+                android:padding="2dp"
+                android:src="@drawable/ic_widget_main_mem"
+                android:contentDescription="@null" />
+
+            <TextView
+                android:id="@+id/tv_mem_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_centerVertical="true"
+                android:layout_marginStart="5dp"
+                android:layout_toEndOf="@id/iv_mem"
+                android:fontFamily="sans-serif-medium"
+                android:includeFontPadding="false"
+                android:text="@string/memory_brief"
+                android:textColor="#09183F"
+                android:textSize="9sp" />
+
+            <TextView
+                android:id="@+id/tv_mem"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_alignParentEnd="true"
+                android:layout_centerVertical="true"
+                android:layout_marginEnd="6dp"
+                android:fontFamily="sans-serif-medium"
+                android:includeFontPadding="false"
+                android:text="60%"
+                android:textColor="#1DCD46"
+                android:textSize="12sp" />
+        </RelativeLayout>
+
+        <RelativeLayout
+            android:id="@+id/rl_disk"
+            android:layout_width="match_parent"
+            android:layout_height="20dp"
+            android:layout_marginTop="4dp"
+            android:background="@drawable/bg_widget_main_row">
+
+            <ProgressBar
+                android:id="@+id/pb_disk"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:indeterminate="false"
+                android:max="100"
+                android:progressDrawable="@drawable/bg_widget_main_disk_progress" />
+
+            <ImageView
+                android:id="@+id/iv_disk"
+                android:layout_width="19dp"
+                android:layout_height="19dp"
+                android:layout_alignParentStart="true"
+                android:layout_centerVertical="true"
+                android:layout_marginStart="1dp"
+                android:background="@drawable/bg_widget_main_disk_icon"
+                android:padding="2dp"
+                android:src="@drawable/ic_widget_main_disk"
+                android:contentDescription="@null" />
+
+            <TextView
+                android:id="@+id/tv_disk_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_centerVertical="true"
+                android:layout_marginStart="5dp"
+                android:layout_toEndOf="@id/iv_disk"
+                android:fontFamily="sans-serif-medium"
+                android:includeFontPadding="false"
+                android:text="@string/disk_brief"
+                android:textColor="#09183F"
+                android:textSize="9sp" />
+
+            <TextView
+                android:id="@+id/tv_disk"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_alignParentEnd="true"
+                android:layout_centerVertical="true"
+                android:layout_marginEnd="6dp"
+                android:fontFamily="sans-serif-medium"
+                android:includeFontPadding="false"
+                android:text="60%"
+                android:textColor="#1DCD46"
+                android:textSize="12sp" />
+        </RelativeLayout>
+
+        <RelativeLayout
+            android:id="@+id/rl_apps"
+            android:layout_width="match_parent"
+            android:layout_height="20dp"
+            android:layout_marginTop="4dp"
+            android:background="@drawable/bg_widget_main_row">
+
+            <ImageView
+                android:id="@+id/iv_rocket"
+                android:layout_width="19dp"
+                android:layout_height="19dp"
+                android:layout_alignParentStart="true"
+                android:layout_centerVertical="true"
+                android:layout_marginStart="1dp"
+                android:background="@drawable/bg_widget_main_apps_icon"
+                android:padding="2dp"
+                android:src="@drawable/ic_widget_main_apps"
+                android:contentDescription="@null" />
+
+            <TextView
+                android:id="@+id/tv_apps_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_centerVertical="true"
+                android:layout_marginStart="5dp"
+                android:layout_toEndOf="@id/iv_rocket"
+                android:fontFamily="sans-serif-medium"
+                android:includeFontPadding="false"
+                android:text="@string/running_apps"
+                android:textColor="#09183F"
+                android:textSize="9sp" />
+
+            <TextView
+                android:id="@+id/tv_apps"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_alignParentEnd="true"
+                android:layout_centerVertical="true"
+                android:layout_marginEnd="6dp"
+                android:fontFamily="sans-serif-medium"
+                android:includeFontPadding="false"
+                android:text="28 apps"
+                android:textColor="#09183F"
+                android:textSize="12sp" />
+        </RelativeLayout>
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/rl_time"
+        android:layout_width="84dp"
+        android:layout_height="match_parent"
+        android:layout_alignParentEnd="true"
+        android:gravity="center_horizontal"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/tv_date"
+            android:layout_width="match_parent"
+            android:layout_height="15dp"
+            android:fontFamily="sans-serif"
+            android:gravity="center"
+            android:includeFontPadding="false"
+            android:text="2026.08.05"
+            android:textColor="#6B7280"
+            android:textSize="11sp"
+            android:textStyle="bold" />
+
+        <ImageView
+            android:id="@+id/iv_widget_clock"
+            android:layout_width="76dp"
+            android:layout_height="76dp"
+            android:layout_marginTop="6dp"
+            android:contentDescription="@null"
+            android:scaleType="fitCenter"
+            android:src="@drawable/widget_main_clock" />
+    </LinearLayout>
+</RelativeLayout>

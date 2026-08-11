@@ -64,6 +64,7 @@ import com.zero.study.ui.activity.RoomActivity
 import com.zero.study.ui.activity.SecondActivity
 import com.zero.study.ui.activity.TakePhotoActivity
 import com.zero.study.ui.activity.WidgetActivity
+import com.zero.widget.WidgetGuideActivity
 import com.zero.study.ui.dialog.BottomSheetDialog
 import com.zero.study.ui.dialog.Dialog
 import kotlinx.coroutines.delay
@@ -90,6 +91,9 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(FragmentHomeBinding::infl
     var encryptedData: String? = ""
     private var windowIsTranslucent: Boolean = false
     override fun initView() {
+        binding.addDesktopWidget.setOnClickListener {
+            startActivity(Intent(requireContext(), WidgetGuideActivity::class.java))
+        }
         binding.tagFlow.addTag(requireContext(), Gson().fromJson(requireActivity().readJson("tags.json"))) { position, _ ->
             when (position + 1) {
                 1 -> {

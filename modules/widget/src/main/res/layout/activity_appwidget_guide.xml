@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/white"
+    android:orientation="vertical">
+
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:background="@color/white"
+        android:paddingStart="4dp"
+        app:contentInsetStart="0dp"
+        app:contentInsetStartWithNavigation="0dp"
+        app:navigationIcon="@drawable/ic_feedback_back"
+        app:title="@string/manually_add_widgets"
+        app:titleTextAppearance="@style/ScreenshotToolbarTitle"
+        app:titleTextColor="#09183F" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:clipToPadding="false"
+        android:fillViewport="true"
+        android:scrollbars="none">
+
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingStart="16dp"
+            android:paddingTop="5dp"
+            android:paddingEnd="16dp"
+            android:paddingBottom="6dp">
+
+            <androidx.constraintlayout.widget.ConstraintLayout
+                android:id="@+id/step1_title_row"
+                android:layout_width="0dp"
+                android:layout_height="26dp"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent">
+
+                <TextView
+                    android:id="@+id/tv_step1_index"
+                    android:layout_width="12dp"
+                    android:layout_height="26dp"
+                    android:fontFamily="sans-serif"
+                    android:gravity="start"
+                    android:includeFontPadding="false"
+                    android:lineHeight="26sp"
+                    android:text="1"
+                    android:textColor="#046EFA"
+                    android:textSize="20sp"
+                    android:textStyle="bold"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintTop_toTopOf="parent" />
+
+                <TextView
+                    android:id="@+id/tv_step1"
+                    android:layout_width="0dp"
+                    android:layout_height="26dp"
+                    android:layout_marginStart="4dp"
+                    android:fontFamily="sans-serif"
+                    android:gravity="start"
+                    android:includeFontPadding="false"
+                    android:lineHeight="26sp"
+                    android:text="@string/long_press_the_home_screen"
+                    android:textColor="#09183F"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    app:layout_constraintEnd_toEndOf="parent"
+                    app:layout_constraintStart_toEndOf="@id/tv_step1_index"
+                    app:layout_constraintTop_toTopOf="parent" />
+            </androidx.constraintlayout.widget.ConstraintLayout>
+
+            <TextView
+                android:id="@+id/tv_step1_desc"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="17dp"
+                android:layout_marginTop="4dp"
+                android:layout_marginEnd="2dp"
+                android:fontFamily="sans-serif"
+                android:gravity="start"
+                android:includeFontPadding="false"
+                android:lineHeight="24sp"
+                android:text="@string/add_widget_step1"
+                android:textColor="#6B7280"
+                android:textSize="16sp"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/step1_title_row" />
+
+            <ImageView
+                android:id="@+id/iv_step1"
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:layout_marginStart="13dp"
+                android:layout_marginTop="16dp"
+                android:layout_marginEnd="13dp"
+                android:contentDescription="@null"
+                android:scaleType="fitXY"
+                android:src="@drawable/img_add_widgets_step1"
+                app:layout_constraintDimensionRatio="317:220"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/tv_step1_desc" />
+
+            <androidx.constraintlayout.widget.ConstraintLayout
+                android:id="@+id/step2_title_row"
+                android:layout_width="0dp"
+                android:layout_height="26dp"
+                android:layout_marginTop="26dp"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/iv_step1">
+
+                <TextView
+                    android:id="@+id/tv_step2_index"
+                    android:layout_width="12dp"
+                    android:layout_height="26dp"
+                    android:fontFamily="sans-serif"
+                    android:gravity="start"
+                    android:includeFontPadding="false"
+                    android:lineHeight="26sp"
+                    android:text="2"
+                    android:textColor="#046EFA"
+                    android:textSize="20sp"
+                    android:textStyle="bold"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintTop_toTopOf="parent" />
+
+                <TextView
+                    android:id="@+id/tv_step2"
+                    android:layout_width="0dp"
+                    android:layout_height="26dp"
+                    android:layout_marginStart="4dp"
+                    android:fontFamily="sans-serif"
+                    android:gravity="start"
+                    android:includeFontPadding="false"
+                    android:lineHeight="26sp"
+                    android:text="@string/drag_it_to_the_home_screen"
+                    android:textColor="#09183F"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    app:layout_constraintEnd_toEndOf="parent"
+                    app:layout_constraintStart_toEndOf="@id/tv_step2_index"
+                    app:layout_constraintTop_toTopOf="parent" />
+            </androidx.constraintlayout.widget.ConstraintLayout>
+
+            <TextView
+                android:id="@+id/tv_step2_desc"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="17dp"
+                android:layout_marginTop="5dp"
+                android:layout_marginEnd="2dp"
+                android:fontFamily="sans-serif"
+                android:gravity="start"
+                android:includeFontPadding="false"
+                android:lineHeight="24sp"
+                android:text="@string/add_widget_step2"
+                android:textColor="#6B7280"
+                android:textSize="16sp"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/step2_title_row" />
+
+            <ImageView
+                android:id="@+id/iv_step2"
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:layout_marginStart="13dp"
+                android:layout_marginTop="16dp"
+                android:layout_marginEnd="13dp"
+                android:contentDescription="@null"
+                android:scaleType="fitXY"
+                android:src="@drawable/img_add_widgets_step2"
+                app:layout_constraintDimensionRatio="317:220"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/tv_step2_desc" />
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/iv_step2" />
+
+        </androidx.constraintlayout.widget.ConstraintLayout>
+    </ScrollView>
+</LinearLayout>

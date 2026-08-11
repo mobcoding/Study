@@ -1,4 +1,5 @@
 [versions]
+aabresguardPluginVersion = "v0.1.12-agp9"
 coilVersion = "2.7.0"
 leakcanaryAndroidVersion = "2.14"
 okhttpProfilerVersion = "1.1.1"
@@ -15,12 +16,11 @@ junit = "4.13.2"
 junitVersion = "1.3.0"
 appcompat = "1.7.1"
 material = "1.13.0"
-aabresguardPluginVersion = "v0.1.12-agp9"
 roomVersion = "2.8.4"
 pagingVersion = "3.5.0"
 okhttpBom = "5.3.2"
 documentFileVersion = "1.1.0"
-stringfog = "v5.3.1-agp9"
+stringfog = "5.3.3"
 glide = "5.0.7"
 swiperefresh = "1.2.0"
 mmkv = "2.4.0"
@@ -33,8 +33,14 @@ fragmentKtx = "1.8.9"
 lifecycleProcess = "2.10.0"
 lifecycleViewmodelKtx = "2.10.0"
 startupRuntime = "1.2.0"
+agpVersion = "8.13.0"
+kotlinVersion = "2.2.10"
+espressoCoreVersion = "3.7.0"
+activity = "1.13.0"
+constraintlayoutVersion = "2.2.2"
 
 [libraries]
+aabresguard-plugin = { module = "com.github.zhoutianling.AabResGuard:aabresguard-plugin", version.ref = "aabresguardPluginVersion" }
 androidx-camera-camera2 = { module = "androidx.camera:camera-camera2", version.ref = "cameraVersion" }
 androidx-camera-core = { module = "androidx.camera:camera-core", version.ref = "cameraVersion" }
 androidx-camera-lifecycle = { module = "androidx.camera:camera-lifecycle", version.ref = "cameraVersion" }
@@ -73,7 +79,6 @@ material = { group = "com.google.android.material", name = "material", version.r
 gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
 glide = { group = "com.github.bumptech.glide", name = "glide", version.ref = "glide" }
 xor = { module = "com.github.zhoutianling.StringFog:xor", version.ref = "stringfog" }
-aabresguard-plugin = { module = "com.github.zhoutianling.AabResGuard:aabresguard-plugin", version.ref = "aabresguardPluginVersion" }
 stringfogGradlePlugin = { module = "com.github.zhoutianling.StringFog:gradle-plugin", version.ref = "stringfog" }
 swiperefresh-layout = { group = "androidx.swiperefreshlayout", name = "swiperefreshlayout", version.ref = "swiperefresh" }
 mmkv = { module = "com.tencent:mmkv-static", version.ref = "mmkv" }
@@ -83,6 +88,12 @@ opencv = { module = "org.opencv:opencv", version.ref = "opencvVersion" }
 androidx-media3-exoplayer = { module = "androidx.media3:media3-exoplayer", version.ref = "media3Exoplayer" }
 androidx-media3-session = { module = "androidx.media3:media3-session", version.ref = "media3Exoplayer" }
 androidx-media3-ui = { module = "androidx.media3:media3-ui", version.ref = "media3Exoplayer"  }
+androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCoreVersion" }
+androidx-activity = { group = "androidx.activity", name = "activity", version.ref = "activity" }
+androidx-constraintlayout = { group = "androidx.constraintlayout", name = "constraintlayout", version.ref = "constraintlayoutVersion" }
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agpVersion" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlinVersion" }
 
 
 [bundles]

@@ -1,0 +1,6 @@
+<resources>
+    <style name="Theme.Widget" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:colorAccent">@color/widget_accent</item>
+    </style>
+</resources>

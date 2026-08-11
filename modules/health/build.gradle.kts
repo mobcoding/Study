@@ -2,6 +2,7 @@ import org.gradle.api.Project
 
 plugins {
     id("com.android.library")
+    id("org.jetbrains.kotlin.android")
 }
 
 fun Project.extraInt(name: String) = rootProject.extra[name].toString().toInt()
@@ -12,7 +13,7 @@ val minSdkValue = extraInt("minSdk")
 android {
     namespace = "com.zero.health"
     compileSdk = compileSdkValue
-    ndkVersion = "28.1.13356709"
+    ndkVersion = "28.2.13676358"
 
     defaultConfig {
         minSdk = minSdkValue
