@@ -1,5 +1,5 @@
 [versions]
-aabresguardPluginVersion = "v0.1.12-agp9"
+aabresguardPluginVersion = "v0.1.18"
 coilVersion = "2.7.0"
 leakcanaryAndroidVersion = "2.14"
 okhttpProfilerVersion = "1.1.1"
@@ -40,7 +40,7 @@ activity = "1.13.0"
 constraintlayoutVersion = "2.2.2"
 
 [libraries]
-aabresguard-plugin = { module = "com.github.zhoutianling.AabResGuard:aabresguard-plugin", version.ref = "aabresguardPluginVersion" }
+aabresguard-plugin = { module = "com.github.mobcoding.AabResGuard:aabresguard-plugin", version.ref = "aabresguardPluginVersion" }
 androidx-camera-camera2 = { module = "androidx.camera:camera-camera2", version.ref = "cameraVersion" }
 androidx-camera-core = { module = "androidx.camera:camera-core", version.ref = "cameraVersion" }
 androidx-camera-lifecycle = { module = "androidx.camera:camera-lifecycle", version.ref = "cameraVersion" }
@@ -78,8 +78,8 @@ androidx-startup-runtime = { module = "androidx.startup:startup-runtime", versio
 material = { group = "com.google.android.material", name = "material", version.ref = "material" }
 gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
 glide = { group = "com.github.bumptech.glide", name = "glide", version.ref = "glide" }
-xor = { module = "com.github.zhoutianling.StringFog:xor", version.ref = "stringfog" }
-stringfogGradlePlugin = { module = "com.github.zhoutianling.StringFog:gradle-plugin", version.ref = "stringfog" }
+xor = { module = "com.github.mobcoding.StringFog:xor", version.ref = "stringfog" }
+stringfogGradlePlugin = { module = "com.github.mobcoding.StringFog:gradle-plugin", version.ref = "stringfog" }
 swiperefresh-layout = { group = "androidx.swiperefreshlayout", name = "swiperefreshlayout", version.ref = "swiperefresh" }
 mmkv = { module = "com.tencent:mmkv-static", version.ref = "mmkv" }
 lottie = { module = "com.airbnb.android:lottie", version.ref = "lottieVersion" }
@@ -103,4 +103,3 @@ room = [
     "androidx-room-paging",
     "androidx-paging-runtime",
 ]
-

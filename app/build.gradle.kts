@@ -1,5 +1,7 @@
 import com.github.megatronking.stringfog.plugin.StringFogMode
+import com.github.megatronking.stringfog.plugin.StringFogExtension
 import com.github.megatronking.stringfog.plugin.kg.RandomKeyGenerator
+import com.bytedance.android.plugin.extensions.AabResGuardExtension
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -89,15 +91,12 @@ android {
     }
 }
 
-extensions.configure<Any>("stringfog") {
-    withGroovyBuilder {
-        setProperty("implementation", "com.github.megatronking.stringfog.xor.StringFogImpl")
-        setProperty("packageName", "com.zero.study")
-        setProperty("enable", true)
-        setProperty("fogPackages", listOf("com.zero.study"))
-        setProperty("kg", RandomKeyGenerator())
-        setProperty("mode", StringFogMode.bytes)
-    }
+configure<StringFogExtension> {
+    implementation = "com.github.megatronking.stringfog.xor.StringFogImpl"
+    enable = true
+    fogPackages = arrayOf("com.zero.study")
+    kg = RandomKeyGenerator()
+    mode = StringFogMode.bytes
 }
 
 androidComponents {
@@ -115,20 +114,19 @@ androidComponents {
     }
 }
 
-extensions.configure<Any>("aabResGuard") {
-    withGroovyBuilder {
-        setProperty("mappingFile", file("mapping.txt").toPath())
-        setProperty("whiteList",
-            listOf("*.R.raw.*", "*.R.drawable.icon", "*.R.string.default_web_client_id", "*.R.string.firebase_database_url", "*.R.string.gcm_defaultSenderId", "*.R.string.google_api_key",
-                "*.R.string.google_app_id", "*.R.string.google_crash_reporting_api_key", "*.R.string.google_storage_bucket", "*.R.string.project_id", "*.R.string.com.crashlytics.android.build_id"))
-        setProperty("obfuscatedBundleFileName", "app_build.aab")
-        setProperty("mergeDuplicatedRes", true)
-        setProperty("enableFilterFiles", true)
-        setProperty("filterList", listOf("BUNDLE-METADATA/*"))
-        setProperty("enableFilterStrings", false)
-        setProperty("unusedStringPath", file("unused.txt").toPath())
-        setProperty("languageWhiteList", listOf("en", "ar", "de", "es", "fr", "hi", "in", "ja", "ko", "pt", "ru"))
-    }
+configure<AabResGuardExtension> {
+    mappingFile = file("mapping.txt").toPath()
+    whiteList = setOf(
+        "*.R.raw.*", "*.R.drawable.icon", "*.R.string.default_web_client_id", "*.R.string.firebase_database_url", "*.R.string.gcm_defaultSenderId", "*.R.string.google_api_key",
+        "*.R.string.google_app_id", "*.R.string.google_crash_reporting_api_key", "*.R.string.google_storage_bucket", "*.R.string.project_id", "*.R.string.com.crashlytics.android.build_id"
+    )
+    obfuscatedBundleFileName = "app_build.aab"
+    mergeDuplicatedRes = true
+    enableFilterFiles = true
+    filterList = setOf("META-INF/*", "BUNDLE-METADATA/*")
+    enableFilterStrings = false
+    unusedStringPath = file("unused.txt").toPath().toString()
+    languageWhiteList = setOf("en", "ar", "de", "es", "fr", "hi", "in", "ja", "ko", "pt", "ru")
 }
 
 dependencies {
