@@ -91,9 +91,6 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(FragmentHomeBinding::infl
     var encryptedData: String? = ""
     private var windowIsTranslucent: Boolean = false
     override fun initView() {
-        binding.addDesktopWidget.setOnClickListener {
-            startActivity(Intent(requireContext(), WidgetGuideActivity::class.java))
-        }
         binding.tagFlow.addTag(requireContext(), Gson().fromJson(requireActivity().readJson("tags.json"))) { position, _ ->
             when (position + 1) {
                 1 -> {
@@ -198,6 +195,7 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(FragmentHomeBinding::infl
                     requireActivity().finish()
                 }
                 30 -> context?.startActivity<CalendarReminderActivity>()
+                31 -> context?.startActivity<WidgetGuideActivity>()
 
                 else -> ThreadPool.execute {
                     Log.i("zzz", "ThreadName:" + Thread.currentThread().name)

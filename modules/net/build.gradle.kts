@@ -2,7 +2,7 @@ import org.gradle.api.Project
 
 plugins {
     id("com.android.library")
-    id("org.jetbrains.kotlin.android")
+
 }
 
 fun Project.extraInt(name: String) = rootProject.extra[name].toString().toInt()

@@ -7,7 +7,6 @@ import java.util.TimeZone
 
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")
     id("com.google.gms.google-services")
     id("com.google.devtools.ksp")
 }
@@ -15,9 +14,9 @@ plugins {
 fun Project.extraInt(name: String) = (rootProject.extra[name] as Number).toInt()
 fun Project.extraString(name: String) = rootProject.extra[name].toString()
 
-val configuredCompileSdk = extraInt("compileSdk")
-val configuredMinSdk = extraInt("minSdk")
-val configuredTargetSdk = extraInt("targetSdk")
+val compileSdkVersion = extraInt("compileSdk")
+val minSdkVersion = extraInt("minSdk")
+val targetSdkVersion = extraInt("targetSdk")
 val applicationIdValue = extraString("APPLICATION_ID")
 val storePath = extraString("STORE_PATH")
 val storePasswordValue = extraString("STORE_PASSWORD")
@@ -31,12 +30,12 @@ apply(plugin = "stringfog")
 
 android {
     namespace = "com.zero.study"
-    compileSdk = configuredCompileSdk
+    compileSdk = compileSdkVersion
 
     defaultConfig {
         applicationId = applicationIdValue
-        minSdk = configuredMinSdk
-        targetSdk = configuredTargetSdk
+        minSdk = minSdkVersion
+        targetSdk = targetSdkVersion
         versionCode = 1
         versionName = appVersionName
         buildConfigField("String", "COUNTRY_API_URL", "\"https://ipinfo.io/json/\"")
