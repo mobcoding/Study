@@ -81,7 +81,7 @@ import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
 public final class AabToolGuiApp {
-    private static final String APP_NAME = "AAB Tool GUI 3.0";
+    private static final String APP_NAME = "AAB Tool GUI 5.1";
     private static final String BUNDLETOOL_NAME = "bundletool-all-1.18.3.jar";
     private static final String BUNDLED_BUNDLETOOL_RESOURCE = "/embedded/" + BUNDLETOOL_NAME;
     private static final String DEBUG_ALIAS = "aab_debug";
@@ -127,12 +127,9 @@ public final class AabToolGuiApp {
     private static final int GUI_CHINESE_PREVIEW_LIMIT = GUI_SECTION_PREVIEW_LIMIT;
     private static final int MAX_SAMPLE_TEXT = 120;
     private static final int MAX_GENERIC_SCAN_BYTES = 4 * 1024 * 1024;
-    private static final Color ACTIVE_PROGRESS_COLOR = new Color(43, 119, 192);
-    private static final Color SUCCESS_PROGRESS_COLOR = new Color(39, 136, 93);
-    private static final Color FAILURE_PROGRESS_COLOR = new Color(190, 76, 76);
-    private static final Color PROGRESS_TRACK_COLOR = new Color(224, 229, 235);
     private static final String APKS_CACHE_SCHEMA_VERSION = "1";
     private static volatile Path preferredJavaBinary;
+    private static boolean startupSystemDarkMode;
 
     private AabToolGuiApp() {
     }
@@ -145,11 +142,14 @@ public final class AabToolGuiApp {
             }
             return;
         }
-        try {
-            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-        } catch (Exception ignored) {
-        }
-        SwingUtilities.invokeLater(() -> new MainFrame().setVisible(true));
+        startupSystemDarkMode = AppTheme.detectSystemDarkMode();
+        SettingsStore startupSettings = new SettingsStore();
+        startupSettings.load();
+        AppTheme.Mode themeMode = AppTheme.Mode.fromSetting(startupSettings.get("themeMode", "SYSTEM"));
+        SwingUtilities.invokeLater(() -> {
+            AppTheme.install(themeMode.isDark(startupSystemDarkMode));
+            new MainFrame().setVisible(true);
+        });
     }
 
     private enum InstallMode {
@@ -694,6 +694,9 @@ public final class AabToolGuiApp {
 
     private static final class MainFrame extends JFrame {
         private final SettingsStore settings = new SettingsStore();
+        private final JComboBox<AppTheme.Mode> themeModeBox = new JComboBox<>(AppTheme.Mode.values());
+        private final JPanel progressPanel = new JPanel(new BorderLayout(0, 4));
+        private String progressColorKey = "AabTool.progress.active";
 
         private final JTextField aabField = new JTextField(48);
         private final JTextField outputField = new JTextField(48);
@@ -735,7 +738,35 @@ public final class AabToolGuiApp {
             settings.load();
             buildUi();
             loadSettings();
+            themeModeBox.setSelectedItem(AppTheme.Mode.fromSetting(settings.get("themeMode", "SYSTEM")));
+            themeModeBox.addActionListener(e -> applySelectedTheme());
             refreshDeviceChoices(false);
+        }
+
+        private void applySelectedTheme() {
+            AppTheme.Mode mode = (AppTheme.Mode) Objects.requireNonNull(themeModeBox.getSelectedItem());
+            settings.put("themeMode", mode.name());
+            settings.save();
+            AppTheme.install(mode.isDark(startupSystemDarkMode));
+            for (java.awt.Window window : java.awt.Window.getWindows()) {
+                SwingUtilities.updateComponentTreeUI(window);
+            }
+            progressBar.setUI(new StatusProgressBarUI());
+            progressBar.setBorder(BorderFactory.createEmptyBorder());
+            progressBar.setOpaque(false);
+            applyProgressTheme();
+            revalidate();
+            repaint();
+        }
+
+        private void applyProgressTheme() {
+            progressPanel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(1, 0, 0, 0, UIManager.getColor("Separator.foreground")),
+                BorderFactory.createEmptyBorder(7, 0, 6, 0)
+            ));
+            progressLabel.setForeground(UIManager.getColor("Label.foreground"));
+            progressBar.setBackground(UIManager.getColor("AabTool.progress.track"));
+            progressBar.setForeground(UIManager.getColor(progressColorKey));
         }
 
         private void buildUi() {
@@ -815,6 +846,16 @@ public final class AabToolGuiApp {
             row = addCheckBoxRow(advancedPanel, c, row, "权限选项", allowDowngradeBox, grantRuntimePermissionsBox);
             autoInstallAfterDropBox.addActionListener(e -> saveAutoInstallAfterDropPreference());
 
+            c.gridy = row;
+            c.gridx = 0;
+            c.weightx = 0;
+            c.gridwidth = 1;
+            advancedPanel.add(new JLabel("主题:"), c);
+            c.gridx = 1;
+            c.weightx = 1;
+            themeModeBox.setToolTipText("手动选择立即生效；跟随系统使用启动时检测的模式。");
+            advancedPanel.add(themeModeBox, c);
+
             advancedPanel.setVisible(false);
 
             wrapper.add(header, BorderLayout.NORTH);
@@ -856,18 +897,13 @@ public final class AabToolGuiApp {
         private JPanel buildActionPanel() {
             JPanel panel = new JPanel(new BorderLayout());
 
-            JPanel progressPanel = new JPanel(new BorderLayout(0, 4));
-            progressPanel.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createMatteBorder(1, 0, 0, 0, new Color(218, 218, 218)),
-                BorderFactory.createEmptyBorder(7, 0, 6, 0)
-            ));
-            progressLabel.setForeground(new Color(65, 65, 65));
+            applyProgressTheme();
             progressLabel.setHorizontalAlignment(JLabel.LEFT);
             progressBar.setPreferredSize(new Dimension(0, 18));
             progressBar.setBorder(BorderFactory.createEmptyBorder());
             progressBar.setOpaque(false);
-            progressBar.setBackground(PROGRESS_TRACK_COLOR);
-            progressBar.setForeground(ACTIVE_PROGRESS_COLOR);
+            progressBar.setBackground(UIManager.getColor("AabTool.progress.track"));
+            progressBar.setForeground(UIManager.getColor("AabTool.progress.active"));
             progressBar.setUI(new StatusProgressBarUI());
             progressBar.setIndeterminate(false);
             progressPanel.add(progressLabel, BorderLayout.NORTH);
@@ -1345,16 +1381,18 @@ public final class AabToolGuiApp {
         }
 
         private void beginProgress(String message) {
+            progressColorKey = "AabTool.progress.active";
             progressLabel.setText(message);
             progressBar.setValue(0);
-            progressBar.setForeground(ACTIVE_PROGRESS_COLOR);
+            progressBar.setForeground(UIManager.getColor("AabTool.progress.active"));
             progressBar.setIndeterminate(true);
         }
 
         private void completeProgress(boolean success) {
+            progressColorKey = success ? "AabTool.progress.success" : "AabTool.progress.failure";
             progressLabel.setText(success ? "任务完成" : "任务失败");
             progressBar.setIndeterminate(false);
-            progressBar.setForeground(success ? SUCCESS_PROGRESS_COLOR : FAILURE_PROGRESS_COLOR);
+            progressBar.setForeground(UIManager.getColor(success ? "AabTool.progress.success" : "AabTool.progress.failure"));
             progressBar.setValue(success ? progressBar.getMaximum() : progressBar.getMinimum());
         }
 
@@ -3934,9 +3972,9 @@ public final class AabToolGuiApp {
     }
 
     private static void printCliHelp() {
-        System.out.println("AAB Tool GUI 3.0 CLI");
+        System.out.println(APP_NAME + " CLI");
         System.out.println("Usage:");
-        System.out.println("  java -jar aabtool-gui-3.0.jar --aab <file.aab> [options]");
+        System.out.println("  java -jar aabtool-gui-5.1.jar --aab <file.aab> [options]");
         System.out.println();
         System.out.println("Options:");
         System.out.println("  --aab <path>                           Required. Input AAB file.");

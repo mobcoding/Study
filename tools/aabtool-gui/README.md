@@ -1,4 +1,4 @@
-# AAB Tool GUI 3.0
+# AAB Tool GUI 5.1
 
 New Swing-based AAB installer GUI that wraps official `bundletool` and local `adb`.
 
@@ -7,6 +7,8 @@ New Swing-based AAB installer GUI that wraps official `bundletool` and local `ad
 - Uses official `bundletool-all-1.18.3.jar`
 - Supports `connected-device` and `universal` build modes
 - Supports both GUI and CLI workflows
+- Uses FlatLaf light/dark themes selected once at startup from the Windows default app mode or macOS appearance (`/usr/bin/defaults read -g AppleInterfaceStyle`). Restart the tool after changing the system theme; there is no background theme polling. On macOS, a missing appearance preference means light mode. Unsupported platforms and detection failures fall back to light mode.
+- Advanced options include System / Light / Dark theme selection. Manual changes apply immediately and are saved for the next launch. System mode uses the theme detected at startup.
 - Supports dragging a `.aab` file directly into the GUI `AAB file` input
 - Supports dropdown selection of online Android devices in the GUI `Device ID` field
 - Streams full `bundletool`, `adb`, and `keytool` logs into the GUI
@@ -29,15 +31,25 @@ cd E:\GitHub\Study\tools\aabtool-gui
 
 ## Output
 
-- App jar: `dist\aabtool-gui-3.0.jar`
-- bundletool runtime: `dist\lib\bundletool-all-1.18.3.jar`
+- App jar: `dist\aabtool-gui-5.1.jar`
+- bundletool and FlatLaf runtimes: included in the standalone app JAR
 - Windows launcher: `dist\launch-aabtool-gui.bat`
 - CLI launcher: `dist\launch-aabtool-cli.bat`
+
+Build dependencies are bundled in `vendor/`: bundletool 1.18.3 and FlatLaf 3.6.1 (Apache-2.0).
+The build preserves existing files in `dist/` and stops if compilation or packaging fails.
+
+Theme checks (after building):
+
+```powershell
+javac --release 17 -encoding UTF-8 -cp dist\aabtool-gui-5.1.jar -d build\test-classes src\test\java\com\codex\aabtoolgui\AppThemeTest.java
+java -Djava.awt.headless=true -cp "dist\aabtool-gui-5.1.jar;build\test-classes" com.codex.aabtoolgui.AppThemeTest
+```
 
 ## CLI
 
 ```powershell
-java -jar dist\aabtool-gui-3.0.jar `
+java -jar dist\aabtool-gui-5.1.jar `
   --aab E:\GitHub\Study\app\build\outputs\aabresguard\release\app_build.aab `
   --output E:\GitHub\Study\app\build\outputs\aabresguard\release\app_build-device.apks
 ```
